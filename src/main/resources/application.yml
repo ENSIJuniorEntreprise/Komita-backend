@@ -2,9 +2,9 @@ server:
   port: 8085
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/komita
-    username: postgres
-    password: selim
+    url: jdbc:postgresql://dpg-cs2sq3dsvqrc73dq0uhg-a.oregon-postgres.render.com:5432/komita
+    username: komita_user
+    password: MRaxOD8WEENdSFxAdyPPCISph9LXmkss
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
