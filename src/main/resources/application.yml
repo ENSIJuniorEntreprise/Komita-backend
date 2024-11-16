@@ -3,8 +3,8 @@ server:
 spring:
   datasource:
     url: jdbc:postgresql://dpg-cs2sq3dsvqrc73dq0uhg-a.oregon-postgres.render.com:5432/komita
-    username: komita_user
-    password: MRaxOD8WEENdSFxAdyPPCISph9LXmkss
+    username: komita_1iun_user
+    password: TXcAIbC0oWzKdplzDX4qdnDUvvT1FT6H
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
