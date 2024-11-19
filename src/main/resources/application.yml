@@ -2,7 +2,7 @@ server:
   port: 8085
 spring:
   datasource:
-    url: jdbc:postgresql://dpg-cs2sq3dsvqrc73dq0uhg-a.oregon-postgres.render.com:5432/komita
+    url: jdbc:postgresql://dpg-css7fj0gph6c7392tscg-a.oregon-postgres.render.com/komita_1iun
     username: komita_1iun_user
     password: TXcAIbC0oWzKdplzDX4qdnDUvvT1FT6H
     driver-class-name: org.postgresql.Driver
