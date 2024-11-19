@@ -12,7 +12,7 @@ spring:
         default:
           directory_provider: filesytem
           indexBase: /data/index/default
-      ddl-auto: create-drop
+      ddl-auto: update
     show-sql: false
     properties:
       hibernate:
