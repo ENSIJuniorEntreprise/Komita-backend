@@ -22,9 +22,7 @@ import java.util.Collections;
 import java.util.Properties;
 
 import static org.springframework.http.HttpHeaders.*;
-import static org.springframework.http.HttpHeaders.AUTHORIZATION;
 import static org.springframework.http.HttpMethod.*;
-import static org.springframework.http.HttpMethod.PUT;
 import static org.springframework.web.bind.annotation.RequestMethod.PATCH;
 
 @Configuration
@@ -53,7 +51,7 @@ public class ApplicationConfig {
         final UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         final CorsConfiguration config = new CorsConfiguration();
         config.setAllowCredentials(true);
-        config.setAllowedOrigins(Collections.singletonList("http://localhost:4200"));
+        config.setAllowedOrigins(Arrays.asList("http://localhost:4200", "https://komita-frontend.onrender.com"));
         config.setAllowedHeaders(Arrays.asList(
                 ORIGIN,
                 CONTENT_TYPE,
