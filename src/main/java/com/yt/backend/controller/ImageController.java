@@ -10,12 +10,13 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import org.codehaus.plexus.resource.loader.ResourceNotFoundException;
+import org.springframework.core.io.FileSystemResource;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
-
+import java.io.File;
 import java.util.List;
 
 @RequestMapping("/api/v1/auth")
@@ -125,4 +126,5 @@ public class ImageController {
             return new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
         }
     }
+
 }

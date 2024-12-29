@@ -22,24 +22,29 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final UserDetailsService userDetailsService;
     private final JwtService jwtService;
     private final TokenRepository tokenRepository;
+
     @Override
-    protected void doFilterInternal(@NonNull  HttpServletRequest request, @NonNull HttpServletResponse response, @NonNull FilterChain filterChain)
-            throws ServletException, IOException { final String authHeader = request.getHeader("Authorization");
+    protected void doFilterInternal(@NonNull HttpServletRequest request, @NonNull HttpServletResponse response, @NonNull FilterChain filterChain)
+            throws ServletException, IOException {
+        final String authHeader = request.getHeader("Authorization");
         final String jwt;
         final String userEmail;
-        if (authHeader ==null||!authHeader.startsWith("Bearer")){
-            filterChain.doFilter(request,response);
+
+        if (authHeader == null || !authHeader.startsWith("Bearer")) {
+            filterChain.doFilter(request, response);
             return;
         }
-    jwt =authHeader.substring(7);
-    userEmail =jwtService.extractUsername(jwt);
-        if (userEmail !=null && SecurityContextHolder.getContext().getAuthentication() == null){
+
+        jwt = authHeader.substring(7);
+        userEmail = jwtService.extractUsername(jwt);
+
+        if (userEmail != null && SecurityContextHolder.getContext().getAuthentication() == null) {
             UserDetails userDetails = this.userDetailsService.loadUserByUsername(userEmail);
-            var isTokenValid =tokenRepository.findByToken(jwt)
-                    .map(t-> !t.isExpired()&& !t.isRevoked())
+            var isTokenValid = tokenRepository.findByToken(jwt)
+                    .map(t -> !t.isExpired() && !t.isRevoked())
                     .orElse(false);
-            if (jwtService.isTokenValid(jwt,userDetails) && isTokenValid){
-                UsernamePasswordAuthenticationToken authToken =new UsernamePasswordAuthenticationToken(
+            if (jwtService.isTokenValid(jwt, userDetails) && isTokenValid) {
+                UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
                         userDetails,
                         null,
                         userDetails.getAuthorities()
@@ -52,5 +57,17 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             }
         }
         filterChain.doFilter(request, response);
+    }
+
+    /**
+     * Retrieve the details of the logged-in user from the SecurityContext.
+     * @return the UserDetails of the authenticated user or null if no user is authenticated.
+     */
+    public static UserDetails getAuthenticatedUser() {
+        var authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.isAuthenticated()) {
+            return (UserDetails) authentication.getPrincipal();
+        }
+        return null;
     }
 }
