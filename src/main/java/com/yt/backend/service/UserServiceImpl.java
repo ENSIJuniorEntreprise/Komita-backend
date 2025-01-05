@@ -109,7 +109,12 @@ public class UserServiceImpl implements UserService {
     
         return user.getProfileImage();  
     }
-    
+
+    public String getUserProfileImagePathByEmail(String email) {
+        // Logique pour récupérer le chemin de l'image à partir de l'email
+        User user = userRepository.findByEmail(email);
+        return user != null ? user.getProfileImage() : null;
+    }
     
 
 }

@@ -20,4 +20,5 @@ public interface UserService {
     public User updateUserProfileImage(Long userId, String profileImageURL);
     public User getLoggedInUserDetails(String email);
     public String getUserProfileImagePath(Long userId);
+    public String getUserProfileImagePathByEmail(String email);
 }

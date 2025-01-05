@@ -44,4 +44,8 @@ public class VerificationToken {
         calendar.add(Calendar.MINUTE, EXPIRATION_TIME);
         return new Date(calendar.getTime().getTime());
     }
+
+    public boolean isExpired() {
+        return new Date().after(this.expirationTime);
+    }
 }

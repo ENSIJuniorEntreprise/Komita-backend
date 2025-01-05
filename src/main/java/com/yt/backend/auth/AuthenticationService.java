@@ -102,7 +102,7 @@ public class AuthenticationService {
                 .role(user.getRole())
                 .build();
     }
-    private void revokeAllUserTokens(User user) {
+    public void revokeAllUserTokens(User user) {
         var validUserTokens = tokenRepository.findAllValidTokenByUser((int) user.getId());
         if (validUserTokens.isEmpty())
             return;
@@ -112,6 +112,7 @@ public class AuthenticationService {
         });
         tokenRepository.saveAll(validUserTokens);
     }
+
     private void saveUserToken(User user, String jwtToken) {
         var token = Token.builder()
                 .user(user)

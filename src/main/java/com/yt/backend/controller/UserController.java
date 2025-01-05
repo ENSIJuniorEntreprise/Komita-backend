@@ -33,7 +33,6 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.UUID;
 
-
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/auth")
@@ -140,7 +139,6 @@ public class UserController {
         return new ResponseEntity<>(user, HttpStatus.OK);
     }
 
-
     @Operation(summary = "Update profile image for the logged-in user", description = "Allows the logged-in user to update their profile image.")
     @ApiResponse(responseCode = "200", description = "Profile image updated successfully")
     @ApiResponse(responseCode = "401", description = "Unauthorized")
@@ -150,30 +148,15 @@ public class UserController {
             @RequestParam("file") MultipartFile file,
             Authentication authentication) throws IOException {
 
-        // Check if the user is authorized
-        boolean role = serviceService.isAdminOrProfessional(authentication);
-        if (!role) {
-            return new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
-        }
-
-        // Check if the file is not empty
         if (file.isEmpty()) {
             return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
         }
 
-        // Generate a unique filename for the uploaded image
         String fileName = UUID.randomUUID().toString() + "_" + file.getOriginalFilename();
-
-        // Save the file in the default images directory (this assumes a folder named
-        // 'images' in 'src/main/resources/static')
         Path path = Paths.get("src/main/resources/static/images", fileName);
         Files.createDirectories(path.getParent()); // Ensure the directory exists
         Files.copy(file.getInputStream(), path);
-
-        // File URL is relative to the static folder
         String fileURL = "/images/" + fileName;
-
-        // Update user with the new profile image URL
         User updatedUser = userService.updateUserProfileImage(userId, fileURL);
 
         return new ResponseEntity<>(updatedUser, HttpStatus.OK);
@@ -181,31 +164,32 @@ public class UserController {
 
     @GetMapping("/users/{userId}/profileImage")
     public ResponseEntity<Resource> getProfileImage(@PathVariable("userId") Long userId) throws IOException {
-        // Récupération du chemin de l'image à partir de la base de données ou d'une logique métier
+        // Récupération du chemin de l'image à partir de la base de données ou d'une
+        // logique métier
         String imagePath = userService.getUserProfileImagePath(userId);
-        
+
         // Construction du chemin absolu de l'image
         Path path = Paths.get("src/main/resources/static", imagePath);
-        
+
         if (!Files.exists(path)) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();  // Retourner 404 si l'image n'existe pas
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build(); // Retourner 404 si l'image n'existe pas
         }
-    
+
         // Créez un objet Resource pour l'image
         Resource resource = new UrlResource(path.toUri());
-        
+
         // Détecter le type MIME du fichier en fonction de son extension
         String contentType = Files.probeContentType(path);
         if (contentType == null) {
-            contentType = "application/octet-stream";  // Si le type MIME ne peut pas être déterminé
+            contentType = "application/octet-stream"; // Si le type MIME ne peut pas être déterminé
         }
-    
+
         // Retourner l'image avec le type MIME approprié
         return ResponseEntity.ok()
-                .contentType(MediaType.parseMediaType(contentType))  // Utilise le type MIME détecté
+                .contentType(MediaType.parseMediaType(contentType)) // Utilise le type MIME détecté
                 .body(resource);
     }
-    
+
 
     @GetMapping("/user/details")
     public ResponseEntity<?> getUserDetails(Authentication authentication) {
