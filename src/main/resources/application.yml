@@ -47,7 +47,7 @@ mail:
               - openid
               - profile
               - email
-            redirect-uri: "http://localhost:8085/login/oauth2/code/google"
+            redirect-uri: https://komita-backend.onrender.com//login/oauth2/code/google
             authorization-grant-type: authorization_code
             client-name: Google
 application:
