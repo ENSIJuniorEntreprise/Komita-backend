@@ -54,5 +54,18 @@ public class OAuth2Controller {
         return ResponseEntity.ok(principal.getAttributes());
     }
 
+    // Endpoint to handle OAuth2 login failure
+    @GetMapping("/login/failure")
+    @ResponseBody
+    public ResponseEntity<?> handleOAuth2LoginFailure() {
+        // Log the failure or additional information if needed
+        System.out.println("OAuth2 login failed");
+
+        // Return a response to the client
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body("Authentication failed: Unable to complete OAuth2 login.");
+    }
+
+
 
 }
