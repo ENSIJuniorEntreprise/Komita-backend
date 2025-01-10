@@ -4,6 +4,7 @@ import com.yt.backend.model.user.User;
 import com.yt.backend.repository.UserRepository;
 import com.yt.backend.repository.VerificationTokenRepository;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import io.swagger.v3.oas.annotations.Operation;
@@ -18,6 +19,7 @@ import com.yt.backend.dto.ForgotPasswordRequest;
 import com.yt.backend.dto.ResetPasswordRequest;
 import com.yt.backend.token.VerificationToken;
 
+import java.io.IOException;
 import java.util.UUID;
 
 @RestController
@@ -102,6 +104,12 @@ public class AuthenticationController {
         tokenRepository.delete(token);
 
         return ResponseEntity.ok("Password has been reset successfully");
+    }
+
+    @GetMapping("/google-login")
+    public void googleLogin(HttpServletResponse response) throws IOException {
+        // Redirigez vers le lien de connexion OAuth2 de Google
+        response.sendRedirect("/oauth2/authorization/google");
     }
 
 }

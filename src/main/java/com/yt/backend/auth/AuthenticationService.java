@@ -127,4 +127,5 @@ public class AuthenticationService {
         String randomString = RandomStringUtils.randomAlphanumeric(6); // Change length as needed
         return role.name() + "_" + randomString;
     }
+
 }

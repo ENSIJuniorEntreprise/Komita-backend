@@ -110,4 +110,7 @@ public class User implements UserDetails {
         this.customIdentifier = generateCustomIdentifier(role);
         this.profileImage = profileImage; // Initialize profile image
     }
+
+    public void setName(Object name) {
+    }
 }
