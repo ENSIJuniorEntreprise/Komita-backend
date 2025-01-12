@@ -36,20 +36,6 @@ mail:
         starttls:
           enable: true
       debug: true
-  security:
-    oauth2:
-      client:
-        registration:
-          google:
-            client-id: 1098473380426-m890844i2n6s32adpar2d8c48hqm797p.apps.googleusercontent.com
-            client-secret: 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
-            scope:
-              - openid
-              - profile
-              - email
-            redirect-uri: https://komita-backend.onrender.com//login/oauth2/code/google
-            authorization-grant-type: authorization_code
-            client-name: Google
 application:
   security:
     jwt:

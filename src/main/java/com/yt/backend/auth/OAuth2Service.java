@@ -10,15 +10,30 @@ import com.yt.backend.config.JwtService;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.springframework.context.annotation.Bean;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.client.userinfo.DefaultOAuth2UserService;
 import org.springframework.security.oauth2.client.userinfo.OAuth2UserRequest;
 import org.springframework.security.oauth2.client.userinfo.OAuth2UserService;
+import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
+import org.springframework.security.oauth2.core.user.DefaultOAuth2User;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Service;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
 public class OAuth2Service {
+
+    private static final String GOOGLE_TOKEN_INFO_URL = "https://oauth2.googleapis.com/tokeninfo?id_token=";
 
     private final UserRepository userRepository;
     private final TokenRepository tokenRepository;
@@ -35,12 +50,12 @@ public class OAuth2Service {
         tokenRepository.save(token);
     }
 
+    // Authenticate using Google OAuth2 user
     public AuthenticationResponse authenticateWithGoogle(OAuth2User oAuth2User) {
         String email = oAuth2User.getAttribute("email");
         String firstName = oAuth2User.getAttribute("given_name");
         String lastName = oAuth2User.getAttribute("family_name");
         String picture = oAuth2User.getAttribute("picture");
-
 
         // Log the OAuth2 user details
         System.out.println("Received OAuth2 user: " + email);
@@ -104,4 +119,64 @@ public class OAuth2Service {
         });
         tokenRepository.saveAll(validUserTokens);
     }
+
+    // Main method to authenticate the user using a Google token
+    public AuthenticationResponse authenticateWithGoogleToken(String googleToken) throws Exception {
+        // Use Google API to verify the token and retrieve user information
+        OAuth2User oAuth2User = verifyGoogleTokenAndGetUser(googleToken);
+
+        // Call the authentication method to process the OAuth2User
+        return authenticateWithGoogle(oAuth2User);
+    }
+
+    // Method to verify Google Token and retrieve user information
+    private OAuth2User verifyGoogleTokenAndGetUser(String googleToken) throws Exception {
+        URL url = new URL(GOOGLE_TOKEN_INFO_URL + googleToken);
+        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+        connection.setRequestMethod("GET");
+
+        // Read the response
+        BufferedReader in = new BufferedReader(new InputStreamReader(connection.getInputStream()));
+        String inputLine;
+        StringBuilder response = new StringBuilder();
+
+        while ((inputLine = in.readLine()) != null) {
+            response.append(inputLine);
+        }
+        in.close();
+
+        String responseBody = response.toString();
+        System.out.println("Google Token Info Response: " + responseBody); // Debugging output
+
+        if (responseBody.contains("error")) {
+            throw new Exception("Invalid Google token.");
+        }
+
+        // Parse the JSON response using Jackson
+        ObjectMapper objectMapper = new ObjectMapper();
+        JsonNode jsonNode = objectMapper.readTree(responseBody);
+
+        // Extract user attributes using JSON keys
+        String email = jsonNode.get("email").asText();
+        String firstName = jsonNode.get("given_name").asText();
+        String lastName = jsonNode.get("family_name").asText();
+        String picture = jsonNode.get("picture").asText();
+
+        // Create a map of user attributes
+        Map<String, Object> attributes = new HashMap<>();
+        attributes.put("email", email);
+        attributes.put("given_name", firstName);
+        attributes.put("family_name", lastName);
+        attributes.put("picture", picture);
+
+        System.out.println("Extracted user attributes: " + attributes); // Debugging output
+
+        // Create and return OAuth2User
+        return new DefaultOAuth2User(
+                Collections.singleton(new SimpleGrantedAuthority("ROLE_USER")),
+                attributes,
+                "email"
+        );
+    }
+
 }

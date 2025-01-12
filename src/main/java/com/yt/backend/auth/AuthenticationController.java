@@ -106,10 +106,5 @@ public class AuthenticationController {
         return ResponseEntity.ok("Password has been reset successfully");
     }
 
-    @GetMapping("/google-login")
-    public void googleLogin(HttpServletResponse response) throws IOException {
-        // Redirigez vers le lien de connexion OAuth2 de Google
-        response.sendRedirect("/oauth2/authorization/google");
-    }
 
 }
