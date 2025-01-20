@@ -20,19 +20,37 @@ public class OAuth2Controller {
     }
 
     @PostMapping("/loginWithGoogle")
-    @ResponseBody
-    public ResponseEntity<?> handleGoogleLogin(@RequestBody Map<String, String> requestBody) {
-        // Expecting the Google OAuth2 token from the frontend
-        String googleToken = requestBody.get("token");
+@ResponseBody
+public ResponseEntity<?> handleGoogleLogin(@RequestBody Map<String, String> requestBody) {
+    String googleToken = requestBody.get("token");
 
-        // Verify the Google token and authenticate the user
-        try {
-            AuthenticationResponse response = oAuth2Service.authenticateWithGoogleToken(googleToken);
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Authentication failed: Invalid Google token");
+    try {
+        AuthenticationResponse response = oAuth2Service.authenticateWithGoogleToken(googleToken);
+
+        if (response == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("User does not exist. Please sign up first.");
         }
+
+        return ResponseEntity.ok(response);
+    } catch (Exception e) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Authentication failed: Invalid Google token.");
     }
+}
+
+
+    @PostMapping("/signUpWithGoogle")
+@ResponseBody
+public ResponseEntity<?> handleGoogleSignUp(@RequestBody Map<String, String> requestBody) {
+    String googleToken = requestBody.get("token");
+
+    try {
+        AuthenticationResponse response = oAuth2Service.registerWithGoogleToken(googleToken);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    } catch (Exception e) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Sign-up failed: " + e.getMessage());
+    }
+}
+
 
 
 

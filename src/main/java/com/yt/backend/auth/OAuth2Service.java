@@ -50,12 +50,10 @@ public class OAuth2Service {
         tokenRepository.save(token);
     }
 
+
     // Authenticate using Google OAuth2 user
     public AuthenticationResponse authenticateWithGoogle(OAuth2User oAuth2User) {
         String email = oAuth2User.getAttribute("email");
-        String firstName = oAuth2User.getAttribute("given_name");
-        String lastName = oAuth2User.getAttribute("family_name");
-        String picture = oAuth2User.getAttribute("picture");
 
         // Log the OAuth2 user details
         System.out.println("Received OAuth2 user: " + email);
@@ -63,17 +61,7 @@ public class OAuth2Service {
         // Check if the user exists in the repository
         User existingUser = userRepository.findByEmail(email);
         if (existingUser == null) {
-            System.out.println("Creating new user with email: " + email);
-            existingUser = User.builder()
-                    .email(email)
-                    .firstname(firstName)
-                    .lastname(lastName)
-                    .role(Role.STANDARD_USER)
-                    .status(true)
-                    .customIdentifier(generateCustomIdentifier(Role.valueOf("STANDARD_USER")))
-                    .profileImage(picture)
-                    .build();
-            userRepository.save(existingUser);
+            return null; // Retourne null si l'utilisateur n'existe pas
         }
 
         // Generate and save the JWT token
@@ -88,6 +76,7 @@ public class OAuth2Service {
                 .email(existingUser.getEmail())
                 .build();
     }
+
 
     @Bean
     public OAuth2UserService<OAuth2UserRequest, OAuth2User> customOAuth2UserService() {
@@ -178,5 +167,31 @@ public class OAuth2Service {
                 "email"
         );
     }
+
+    public AuthenticationResponse registerWithGoogleToken(String googleToken) throws Exception {
+        OAuth2User oAuth2User = verifyGoogleTokenAndGetUser(googleToken);
+    
+        String email = oAuth2User.getAttribute("email");
+        if (userRepository.existsByEmail(email)) {
+            throw new Exception("User already exists. Please log in instead.");
+        }
+    
+        User newUser = User.builder()
+                .email(email)
+                .firstname(oAuth2User.getAttribute("given_name"))
+                .lastname(oAuth2User.getAttribute("family_name"))
+                .profileImage(oAuth2User.getAttribute("picture"))
+                .status(true) // Status set to false until completed in frontend
+                .build();
+    
+        userRepository.save(newUser);
+    
+        return AuthenticationResponse.builder()
+                .firstname(newUser.getFirstname())
+                .lastname(newUser.getLastname())
+                .email(newUser.getEmail())
+                .build();
+    }
+    
 
 }
