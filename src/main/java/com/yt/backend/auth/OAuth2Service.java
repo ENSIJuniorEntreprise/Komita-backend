@@ -50,7 +50,6 @@ public class OAuth2Service {
         tokenRepository.save(token);
     }
 
-
     // Authenticate using Google OAuth2 user
     public AuthenticationResponse authenticateWithGoogle(OAuth2User oAuth2User) {
         String email = oAuth2User.getAttribute("email");
@@ -77,7 +76,6 @@ public class OAuth2Service {
                 .build();
     }
 
-
     @Bean
     public OAuth2UserService<OAuth2UserRequest, OAuth2User> customOAuth2UserService() {
         return userRequest -> {
@@ -93,10 +91,11 @@ public class OAuth2Service {
         };
     }
 
-    private String generateCustomIdentifier(Role role) {
-        String randomString = RandomStringUtils.randomAlphanumeric(6); // Change length as needed
-        return role.name() + "_" + randomString;
-    }
+    // private String generateCustomIdentifier(Role role) {
+    // String randomString = RandomStringUtils.randomAlphanumeric(6); // Change
+    // length as needed
+    // return role.name() + "_" + randomString;
+    // }
 
     public void revokeAllUserTokens(User user) {
         var validUserTokens = tokenRepository.findAllValidTokenByUser((int) user.getId());
@@ -164,34 +163,38 @@ public class OAuth2Service {
         return new DefaultOAuth2User(
                 Collections.singleton(new SimpleGrantedAuthority("ROLE_USER")),
                 attributes,
-                "email"
-        );
+                "email");
     }
 
     public AuthenticationResponse registerWithGoogleToken(String googleToken) throws Exception {
         OAuth2User oAuth2User = verifyGoogleTokenAndGetUser(googleToken);
-    
+
         String email = oAuth2User.getAttribute("email");
+        String firstname = oAuth2User.getAttribute("given_name");
+        String lastname = oAuth2User.getAttribute("family_name");
+        String profileImage = oAuth2User.getAttribute("picture");
         if (userRepository.existsByEmail(email)) {
             throw new Exception("User already exists. Please log in instead.");
         }
-    
-        User newUser = User.builder()
-                .email(email)
-                .firstname(oAuth2User.getAttribute("given_name"))
-                .lastname(oAuth2User.getAttribute("family_name"))
-                .profileImage(oAuth2User.getAttribute("picture"))
-                .status(true) // Status set to false until completed in frontend
-                .build();
-    
-        userRepository.save(newUser);
-    
-        return AuthenticationResponse.builder()
-                .firstname(newUser.getFirstname())
-                .lastname(newUser.getLastname())
-                .email(newUser.getEmail())
-                .build();
+
+        // User newUser = User.builder()
+        //         .email(email)
+        //         .firstname(oAuth2User.getAttribute("given_name"))
+        //         .lastname(oAuth2User.getAttribute("family_name"))
+        //         .profileImage(oAuth2User.getAttribute("picture"))
+        //         .status(true) // Status set to false until completed in frontend
+        //         .build();
+
+        // userRepository.save(newUser);
+
+        AuthenticationResponse response = AuthenticationResponse.builder()
+            .firstname(firstname)
+            .lastname(lastname)
+            .email(email)
+            .build();
+
+    // Retourner les informations sans enregistrer l'utilisateur dans la base de données
+    return response;
     }
-    
 
 }
