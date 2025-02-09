@@ -1,4 +1,6 @@
 package com.yt.backend.model;
+
+import com.fasterxml.jackson.annotation.JsonBackReference;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -11,7 +13,6 @@ import org.apache.lucene.analysis.standard.StandardTokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.hibernate.annotations.OnDelete;
 import org.hibernate.annotations.OnDeleteAction;
-
 import java.io.IOException;
 import java.io.StringReader;
 import java.util.ArrayList;
@@ -22,23 +23,26 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name="keyword_table")
+@Table(name = "keyword_table")
 public class Keyword {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     private String keywordName;
+
     @ManyToOne(fetch = FetchType.EAGER, optional = false)
-    @JoinColumn(name = "Service_id", nullable = false)
+    @JoinColumn(name = "service_id", nullable = false)
     @OnDelete(action = OnDeleteAction.CASCADE)
-    @JsonIgnore
+    @JsonBackReference
     private Service service;
+
     // Ensure that the stemmedKeyword is updated whenever the keywordName is set
     @PrePersist
     @PreUpdate
     private void updateStemmedKeyword() {
         this.keywordName = stemKeyword(keywordName);
     }
+
     private String stemKeyword(String keyword) {
         List<String> stemmedWords = new ArrayList<>();
 
