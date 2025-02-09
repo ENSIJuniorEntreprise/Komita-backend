@@ -1,6 +1,7 @@
 package com.yt.backend.controller;
 
 import com.yt.backend.model.Adress;
+import com.yt.backend.model.Image;
 import com.yt.backend.model.Keyword;
 import com.yt.backend.model.Links;
 import com.yt.backend.model.category.Category;
@@ -10,13 +11,14 @@ import com.yt.backend.model.user.User;
 import com.yt.backend.repository.CategoryRepository;
 import com.yt.backend.repository.SubcategoryRepository;
 import com.yt.backend.repository.UserRepository;
+import com.yt.backend.repository.ImageRepository;
 import com.yt.backend.repository.KeywordRepository;
 import com.yt.backend.service.ServiceService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import org.codehaus.plexus.resource.loader.ResourceNotFoundException;
 import org.springframework.security.core.Authentication;
-import org.springframework.web.bind.annotation.RestController;
+
 import com.yt.backend.repository.ServiceRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -35,19 +37,21 @@ public class ServiceController {
     private final UserRepository userRepository;
     private final CategoryRepository categoryRepository;
     private final SubcategoryRepository subcategoryRepository;
-    private final KeywordRepository keywordRepository ;
-
+    private final KeywordRepository keywordRepository;
+    private final ImageRepository imageRepository;
 
     private final ServiceService serviceService;
 
-
-    public ServiceController(ServiceRepository serviceRepository, UserRepository userRepository, CategoryRepository categoryRepository, SubcategoryRepository subcategoryRepository, ServiceService serviceService,KeywordRepository keywordRepository ) {
+    public ServiceController(ServiceRepository serviceRepository, UserRepository userRepository,
+            CategoryRepository categoryRepository, SubcategoryRepository subcategoryRepository,
+            ServiceService serviceService, KeywordRepository keywordRepository, ImageRepository imageRepository) {
         this.serviceRepository = serviceRepository;
         this.userRepository = userRepository;
         this.categoryRepository = categoryRepository;
         this.subcategoryRepository = subcategoryRepository;
         this.keywordRepository = keywordRepository;
         this.serviceService = serviceService;
+        this.imageRepository = imageRepository;
 
     }
 
@@ -61,7 +65,6 @@ public class ServiceController {
         return new ResponseEntity<>(services, HttpStatus.OK);
     }
 
-
     @Operation(summary = "Get service by ID", description = "Retrieve a service by its unique identifier")
     @GetMapping("/services/{id}")
     public ResponseEntity<Service> getServiceById(@PathVariable("id") long id) throws ResourceNotFoundException {
@@ -70,7 +73,6 @@ public class ServiceController {
 
         return new ResponseEntity<>(service, HttpStatus.OK);
     }
-
 
     @Operation(summary = "Create a new service", description = "Allows authorized users to create a new service")
     @ApiResponse(responseCode = "201", description = "Service created successfully")
@@ -82,51 +84,99 @@ public class ServiceController {
         Subcategory subcategory = service.getSubcategory();
         Adress serviceAdress = service.getAdress();
         Links serviceLinks = service.getLinks();
-        //boolean role = serviceService.isAdminOrProfessional(authentication);
+
         Optional<Category> existingCategory = categoryRepository.findById(category.getId());
         Optional<User> existingProfessional = userRepository.findById(professional.getId());
-//        if (role) {
-            if (existingProfessional.isPresent() && existingCategory.isPresent()) {
-                professional = existingProfessional.get();
-                category = existingCategory.get();
-                service.setProfessional(professional);
-                service.setCategory(category);
-                service.setSubcategory(subcategory);
-                service.setAdress(serviceAdress);
-                service.setLinks(serviceLinks);
-                if (Role.valueOf("ADMIN").equals(professional.getRole()) || Role.valueOf("PROFESSIONAL").equals(professional.getRole())) {
-                    Service _service = serviceRepository.save(new Service(service.getName(), service.getDescription(), professional, category, subcategory, Boolean.TRUE, serviceAdress, serviceLinks));
-                    return new ResponseEntity<>(_service, HttpStatus.CREATED);
-                } else {
-                    return ResponseEntity.badRequest().body("the user is not a professional or an admin, please upgrade your privileges and try again!");
+
+        if (existingProfessional.isPresent() && existingCategory.isPresent()) {
+            professional = existingProfessional.get();
+            category = existingCategory.get();
+            service.setProfessional(professional);
+            service.setCategory(category);
+            service.setSubcategory(subcategory);
+            service.setAdress(serviceAdress);
+            service.setLinks(serviceLinks);
+
+            if (Role.valueOf("ADMIN").equals(professional.getRole())
+                    || Role.valueOf("PROFESSIONAL").equals(professional.getRole())) {
+                Service _service = serviceRepository.save(new Service(service.getName(), service.getDescription(),
+                        professional, category, subcategory, Boolean.TRUE, serviceAdress, serviceLinks));
+
+                // Handle keywords
+                if (service.getKeywordList() != null && !service.getKeywordList().isEmpty()) {
+                    for (Keyword keyword : service.getKeywordList()) {
+                        _service.addKeyword(keyword); // Use the helper method
+                    }
+                    keywordRepository.saveAll(_service.getKeywordList()); // Save all keywords
                 }
+
+                // Handle images
+                if (service.getImages() != null && !service.getImages().isEmpty()) {
+                    for (Image image : service.getImages()) {
+                        image.setService(_service); // Link image to service
+                    }
+                    imageRepository.saveAll(service.getImages()); // Save all images
+                }
+
+                return new ResponseEntity<>(_service, HttpStatus.CREATED);
             } else {
-                return ResponseEntity.badRequest().body("Professional with ID " + professional.getId() + " not found" + " or category with ID " + category.getId() + "not found");
+                return ResponseEntity.badRequest().body(
+                        "The user is not a professional or an admin. Please upgrade your privileges and try again!");
             }
-//        } else {
-//            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Insufficient privileges to create a service");
-//        }
+        } else {
+            return ResponseEntity.badRequest().body("Professional with ID " + professional.getId() + " not found"
+                    + " or category with ID " + category.getId() + " not found");
+        }
     }
 
     @Operation(summary = "Update an existing service", description = "Allows authorized users to update an existing service")
     @ApiResponse(responseCode = "200", description = "Service updated successfully")
     @ApiResponse(responseCode = "403", description = "Insufficient privileges")
     @PutMapping("/services/updateService/{id}")
-    public ResponseEntity<?> updateService(@PathVariable("id") long id, @RequestBody Service service, Authentication authentication) throws ResourceNotFoundException {
+    public ResponseEntity<?> updateService(@PathVariable("id") long id, @RequestBody Service service,
+            Authentication authentication) throws ResourceNotFoundException {
         boolean role = serviceService.isAdminOrProfessional(authentication);
         if (role) {
             Service _service = serviceRepository.findById(id)
                     .orElseThrow(() -> new ResourceNotFoundException("Not found Service with id = " + id));
+    
+            // Update all fields
             _service.setName(service.getName());
             _service.setDescription(service.getDescription());
             _service.setState(service.getState());
-            return new ResponseEntity<>(serviceRepository.save(_service), HttpStatus.OK);
+            _service.setCategory(service.getCategory());
+            _service.setSubcategory(service.getSubcategory());
+            _service.setProfessional(service.getProfessional());
+            _service.setAdress(service.getAdress());
+            _service.setLinks(service.getLinks());
+            _service.setChecked(service.getChecked());
+    
+            // Handle keywords
+            if (service.getKeywordList() != null) {
+                _service.getKeywordList().clear(); // Clear existing keywords
+                for (Keyword keyword : service.getKeywordList()) {
+                    keyword.setService(_service); // Set the bidirectional relationship
+                    _service.getKeywordList().add(keyword); // Add new keywords
+                }
+            }
+    
+            // Handle images
+            if (service.getImages() != null) {
+                _service.getImages().clear(); // Clear existing images
+                for (Image image : service.getImages()) {
+                    image.setService(_service); // Set the bidirectional relationship
+                    _service.getImages().add(image); // Add new images
+                }
+            }
+    
+            // Save the updated service
+            Service updatedService = serviceRepository.save(_service);
+            return new ResponseEntity<>(updatedService, HttpStatus.OK);
         } else {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Insufficient privileges");
         }
     }
-
-
+    
     @Operation(summary = "Delete a service by ID", description = "Allows authorized users to delete a service by its ID")
     @ApiResponse(responseCode = "204", description = "Service deleted successfully")
     @ApiResponse(responseCode = "401", description = "Unauthorized")
@@ -155,11 +205,10 @@ public class ServiceController {
         }
     }
 
-
-    @Operation(summary = "Get recent professionals",
-            description = "Get a list of recent professionals with an optional limit on the number of rows returned Max-Rows.")
+    @Operation(summary = "Get recent professionals", description = "Get a list of recent professionals with an optional limit on the number of rows returned Max-Rows.")
     @GetMapping("/services/recentProfessionals")
-    public ResponseEntity<List<Service>> getRecentProfessionals(@RequestHeader(value = "Max-Rows", required = false) Integer maxRows) {
+    public ResponseEntity<List<Service>> getRecentProfessionals(
+            @RequestHeader(value = "Max-Rows", required = false) Integer maxRows) {
         List<Service> recentServices = serviceRepository.findAllByOrderByCreatedAtDesc();
 
         // Check if Max-Rows header is present and valid
@@ -175,7 +224,8 @@ public class ServiceController {
 
     @Operation(summary = "Get popular professionals", description = "Retrieve a list of popular professionals with an optional limit on the number of rows returned Max-Rows.")
     @GetMapping("/services/popularProfessionals")
-    public ResponseEntity<List<Service>> getPopularProfessionals(@RequestHeader(value = "Max-Rows", required = false) Integer maxRows) {
+    public ResponseEntity<List<Service>> getPopularProfessionals(
+            @RequestHeader(value = "Max-Rows", required = false) Integer maxRows) {
         List<Service> popularProfessionals = serviceRepository.findAllByOrderByNbrConsultationsDesc();
 
         // Check if Max-Rows header is present and valid
@@ -189,14 +239,14 @@ public class ServiceController {
         return new ResponseEntity<>(popularProfessionals, HttpStatus.OK);
     }
 
-
     public SubcategoryRepository getSubcategoryRepository() {
         return subcategoryRepository;
     }
 
     @Operation(summary = "Get services by category and subcategory", description = "Retrieve a list of services by category and subcategory IDs")
     @GetMapping("/services/byCategoryAndSubcategory/{categoryId}/{subcategoryId}")
-    public ResponseEntity<? extends Object> getServicesByCategoryAndSubcategory(@PathVariable("categoryId") long categoryId, @PathVariable("subcategoryId") long subcategoryId) {
+    public ResponseEntity<? extends Object> getServicesByCategoryAndSubcategory(
+            @PathVariable("categoryId") long categoryId, @PathVariable("subcategoryId") long subcategoryId) {
         Optional<Category> categoryOptional = categoryRepository.findById(categoryId);
         Optional<Subcategory> subcategoryOptional = subcategoryRepository.findById(subcategoryId);
 
@@ -205,7 +255,9 @@ public class ServiceController {
             Subcategory subcategory = subcategoryOptional.get();
 
             if (!category.getSubcategories().contains(subcategory)) {
-                return new ResponseEntity<String>("Subcategory with ID " + subcategoryId + " does not belong to category with ID " + categoryId, HttpStatus.BAD_REQUEST);
+                return new ResponseEntity<String>(
+                        "Subcategory with ID " + subcategoryId + " does not belong to category with ID " + categoryId,
+                        HttpStatus.BAD_REQUEST);
             }
 
             List<Service> services = serviceRepository.findByCategoryAndSubcategory(category, subcategory);
@@ -217,6 +269,7 @@ public class ServiceController {
             return new ResponseEntity<>(HttpStatus.NOT_FOUND);
         }
     }
+
     @Operation(summary = "Get services by category", description = "Retrieve a list of services by category ID")
     @GetMapping("/services/byCategory/{categoryId}")
     public ResponseEntity<? extends Object> getServicesByCategory(@PathVariable("categoryId") long categoryId) {
@@ -224,7 +277,6 @@ public class ServiceController {
 
         if (categoryOptional.isPresent()) {
             Category category = categoryOptional.get();
-
 
             List<Service> services = serviceRepository.findByCategory(category);
             if (services.isEmpty()) {
@@ -235,6 +287,7 @@ public class ServiceController {
             return new ResponseEntity<>(HttpStatus.NOT_FOUND);
         }
     }
+
     @Operation(summary = "Get services by user", description = "Retrieve a list of services by user ID")
     @GetMapping("/services/byUser/{userId}")
     public ResponseEntity<?> getServicesByUser(@PathVariable("userId") long userId) {
@@ -269,6 +322,5 @@ public class ServiceController {
         }
         return new ResponseEntity<>(services, HttpStatus.OK);
     }
-
 
 }

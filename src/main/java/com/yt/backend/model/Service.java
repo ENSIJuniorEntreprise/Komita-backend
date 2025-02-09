@@ -1,4 +1,5 @@
 package com.yt.backend.model;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.yt.backend.model.category.Category;
 import com.yt.backend.model.category.Subcategory;
 import com.yt.backend.model.user.User;
@@ -6,7 +7,7 @@ import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.Cascade;
 
-
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
@@ -32,6 +33,7 @@ public class Service {
     private Category category;
     @OneToOne
     private Subcategory subcategory;
+    @JsonIgnoreProperties({"tokens", "password"})
     @OneToOne
     private User professional;
     private Boolean state;
@@ -39,16 +41,14 @@ public class Service {
     @Getter
     @OneToOne
     private Adress adress;
-    @OneToMany(mappedBy = "id")
-    private List<Keyword> keywordList;
+    @OneToMany(mappedBy = "service", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    private List<Keyword> keywordList = new ArrayList<>();
     @Cascade(org.hibernate.annotations.CascadeType.ALL)
     @Setter
     @OneToOne
     private Links links;
-    @Cascade(org.hibernate.annotations.CascadeType.ALL)
-    @OneToMany(mappedBy = "id")
-    private List<Image> images;
-
+    @OneToMany(mappedBy = "service", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<Image> images = new ArrayList<>();
     @Setter
     private Boolean checked;
     public Service(String name, String description, User professional, Category category, Subcategory subcategory, Boolean state,Adress adress,Links serviceLinks) {
@@ -72,5 +72,24 @@ public class Service {
     @PreUpdate
     protected void onUpdate() {
         this.updatedAt = new Date();
+    }
+     // Helper method to add a keyword
+     public void addKeyword(Keyword keyword) {
+        keyword.setService(this); // Set the bidirectional relationship
+        this.keywordList.add(keyword);
+    }
+
+    // Helper method to remove a keyword
+    public void removeKeyword(Keyword keyword) {
+        this.keywordList.remove(keyword);
+        keyword.setService(null); // Remove the bidirectional relationship
+    }
+
+    // Ensure the collection is never replaced
+    public void setKeywordList(List<Keyword> keywordList) {
+        this.keywordList.clear(); // Clear the existing collection
+        if (keywordList != null) {
+            this.keywordList.addAll(keywordList); // Add all new keywords
+        }
     }
 }
