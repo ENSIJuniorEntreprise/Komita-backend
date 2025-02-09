@@ -33,7 +33,6 @@ public class Service {
     private Category category;
     @OneToOne
     private Subcategory subcategory;
-    @JsonIgnoreProperties({"tokens", "password"})
     @OneToOne
     private User professional;
     private Boolean state;
