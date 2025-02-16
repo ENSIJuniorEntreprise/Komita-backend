@@ -12,7 +12,7 @@ public class WebConfig implements WebMvcConfigurer {
     @Override
     public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/**") // Apply to all paths
-                .allowedOrigins("http://localhost:4200","https://komita-frontend.onrender.com") // Allow all localhost ports
+                .allowedOrigins("http://localhost:4200","https://komita-frontend.onrender.com, 192.168.1.6") // Allow all localhost ports
                 .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
                 .allowedHeaders("Authorization", "Content-Type", "X-Requested-With")
                 .allowCredentials(true)
