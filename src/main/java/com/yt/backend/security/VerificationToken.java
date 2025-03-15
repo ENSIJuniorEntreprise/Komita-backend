@@ -1,4 +1,4 @@
-package com.yt.backend.token;
+package com.yt.backend.security;
 
 import com.yt.backend.model.user.User;
 import jakarta.persistence.*;

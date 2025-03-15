@@ -5,126 +5,123 @@ import com.yt.backend.repository.ImageRepository;
 import com.yt.backend.repository.ServiceRepository;
 import com.yt.backend.service.ImageService;
 import com.yt.backend.service.ServiceService;
+import com.yt.backend.exception.ResourceNotFoundException;
+import com.yt.backend.exception.BusinessException;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
-import org.codehaus.plexus.resource.loader.ResourceNotFoundException;
-import org.springframework.core.io.FileSystemResource;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
-import java.io.File;
+import java.io.IOException;
 import java.util.List;
+import java.util.stream.Collectors;
 
-@RequestMapping("/api/v1/auth")
 @RestController
+@RequestMapping("/api/v1")
+@CrossOrigin(origins = "*")
 public class ImageController {
 
     private final ImageService imageService;
     private final ServiceService serviceService;
-    private final ServiceRepository serviceRepository;
-    private final ImageRepository imageRepository;
 
-    public ImageController(ImageService imageService, ServiceService serviceService, ServiceRepository serviceRepository, ImageRepository imageRepository) {
+    public ImageController(ImageService imageService, ServiceService serviceService) {
         this.imageService = imageService;
         this.serviceService = serviceService;
-        this.serviceRepository = serviceRepository;
-        this.imageRepository = imageRepository;
     }
 
-    @Operation(summary = "Add an image to a service",
-            description = "Allows authorized users to add a new image to a service")
-    @ApiResponse(responseCode = "201", description = "Image added successfully",
-            content = @Content(schema = @Schema(implementation = Image.class)))
+    @Operation(summary = "Add an image to a service")
+    @ApiResponse(responseCode = "201", description = "Image added successfully")
     @ApiResponse(responseCode = "401", description = "Unauthorized")
-    @PostMapping("/services/{serviceId}/addImage")
-    public ResponseEntity<Image> addImage(@PathVariable(value = "serviceId") Long serviceId, @RequestBody Image requestedImage, Authentication authentication) throws ResourceNotFoundException {
-        boolean role = serviceService.isAdminOrProfessional(authentication);
-        if (role) {
-            Image image = serviceRepository.findById(serviceId).map(service -> {
-                requestedImage.setService(service);
-                return imageService.addImage(requestedImage);
-            }).orElseThrow(() -> new ResourceNotFoundException("Not found service with id" + serviceId));
-            return new ResponseEntity<>(image, HttpStatus.CREATED);
-        } else {
-            return new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
+    @PostMapping(value = "/services/{serviceId}/addImage", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<Image> addImage(
+            @PathVariable(value = "serviceId") Long serviceId,
+            @RequestParam("file") MultipartFile file,
+            Authentication authentication) throws IOException {
+        if (!serviceService.isAdminOrProfessional(authentication)) {
+            throw new BusinessException("Insufficient privileges");
+        }
+
+        validateImageFile(file);
+        Image savedImage = imageService.addImageToService(file, serviceId);
+        return new ResponseEntity<>(savedImage, HttpStatus.CREATED);
+    }
+
+    private void validateImageFile(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new BusinessException("File is empty");
+        }
+
+        String contentType = file.getContentType();
+        if (contentType == null || !contentType.startsWith("image/")) {
+            throw new BusinessException("Invalid file type. Only images are allowed");
+        }
+
+        if (file.getSize() > 5 * 1024 * 1024) {
+            throw new BusinessException("File size too large. Maximum size allowed is 5MB");
         }
     }
 
-    @Operation(summary = "Get all images of a service",
-            description = "Retrieves all images associated with a service")
-    @ApiResponse(responseCode = "200", description = "List of images retrieved successfully",
-            content = @Content(schema = @Schema(implementation = Image.class)))
-    @ApiResponse(responseCode = "401", description = "Unauthorized")
+    @Operation(summary = "Get all images for a service")
+    @ApiResponse(responseCode = "200", description = "Images retrieved successfully")
+    @ApiResponse(responseCode = "404", description = "Service not found")
     @GetMapping("/services/{serviceId}/allImages")
-    public ResponseEntity<List<Image>> getAllImagesByServiceId(@PathVariable(value = "serviceId") Long serviceId, Authentication authentication) throws ResourceNotFoundException{
-        boolean role = serviceService.isAdminOrProfessional(authentication);
-        if(role){
-            if (!serviceRepository.existsById(serviceId)) {
-                throw new ResourceNotFoundException("Not found Service with id = " + serviceId);
-            }
-            List<Image> images = imageRepository.findImageByServiceId(serviceId);
-            return new ResponseEntity<>(images,HttpStatus.OK);
-        }else {
-            return new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
-
+    public ResponseEntity<List<Image>> getAllImagesByServiceId(@PathVariable(value = "serviceId") Long serviceId) {
+        List<Image> images = imageService.getAllImagesByServiceId(serviceId);
+        if (images.isEmpty()) {
+            throw new ResourceNotFoundException("No images found for service with id: " + serviceId);
         }
+        return ResponseEntity.ok(images);
     }
 
-    @Operation(summary = "Get an image by ID",
-            description = "Retrieves an image by its ID")
-    @ApiResponse(responseCode = "200", description = "Image retrieved successfully",
-            content = @Content(schema = @Schema(implementation = Image.class)))
-    @ApiResponse(responseCode = "401", description = "Unauthorized")
-    @GetMapping("/images/{imageId}")
-    public ResponseEntity<Image> getImageById(@PathVariable Long imageId, Authentication authentication)  throws ResourceNotFoundException{
-        boolean role = serviceService.isAdminOrProfessional(authentication);
-        if (role) {
-            Image image = imageRepository.findById(imageId)
-                    .orElseThrow(() -> new ResourceNotFoundException("Not found image with id = " + imageId));
-
-            return new ResponseEntity<>(image, HttpStatus.OK);
-        } else {
-            return new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
-        }
+    @Operation(summary = "Get image data by ID")
+    @ApiResponse(responseCode = "200", description = "Image data retrieved successfully")
+    @ApiResponse(responseCode = "404", description = "Image not found")
+    @GetMapping("/images/{imageId}/data")
+    public ResponseEntity<byte[]> getImageData(@PathVariable Long imageId) {
+        byte[] imageData = imageService.getImageData(imageId);
+        return ResponseEntity.ok()
+                .contentType(MediaType.IMAGE_JPEG)
+                .body(imageData);
     }
 
-    @Operation(summary = "Delete an image by ID",
-            description = "Allows authorized users to delete an image by its ID")
+    @Operation(summary = "Delete an image")
     @ApiResponse(responseCode = "204", description = "Image deleted successfully")
-    @ApiResponse(responseCode = "401", description = "Unauthorized")
-    @DeleteMapping("/images/delete/{imageId}")
-    public ResponseEntity<HttpStatus> deleteImageURL(@PathVariable Long imageId, Authentication authentication) {
-        boolean role = serviceService.isAdminOrProfessional(authentication);
-        if (role) {
-            imageRepository.deleteById(imageId);
-            return new ResponseEntity<>(HttpStatus.NO_CONTENT);
-        } else {
-            return new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
+    @ApiResponse(responseCode = "404", description = "Image not found")
+    @DeleteMapping("/images/{imageId}")
+    public ResponseEntity<Void> deleteImage(
+            @PathVariable Long imageId,
+            Authentication authentication) {
+        if (!serviceService.isAdminOrProfessional(authentication)) {
+            throw new BusinessException("Insufficient privileges");
         }
+
+        imageService.deleteImage(imageId);
+        return ResponseEntity.noContent().build();
     }
 
-    @Operation(summary = "Update an image by ID",
-            description = "Allows authorized users to update an image by its ID")
-    @ApiResponse(responseCode = "200", description = "Image updated successfully",
-            content = @Content(schema = @Schema(implementation = Image.class)))
-    @ApiResponse(responseCode = "401", description = "Unauthorized")
-    @PutMapping("/images/updateImage/{id}")
-    public ResponseEntity<Image> updateImage(@PathVariable Long id, @RequestBody Image updatedImage, Authentication authentication) throws ResourceNotFoundException {
-        boolean role = serviceService.isAdminOrProfessional(authentication);
-        if (role) {
-            Image image = imageRepository.findById(id)
-                    .orElseThrow(() -> new ResourceNotFoundException("KeywordId " + id + "not found"));
+    // DTO class for image metadata
+    private static class ImageDTO {
+        private final Long id;
+        private final String fileName;
+        private final String contentType;
+        private final String url;
 
-            image.setImageURL(updatedImage.getImageURL());
-
-            return new ResponseEntity<>(imageRepository.save(image), HttpStatus.OK);
-        } else {
-            return new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
+        public ImageDTO(Long id, String fileName, String contentType, String url) {
+            this.id = id;
+            this.fileName = fileName;
+            this.contentType = contentType;
+            this.url = url;
         }
-    }
 
+        public Long getId() { return id; }
+        public String getFileName() { return fileName; }
+        public String getContentType() { return contentType; }
+        public String getUrl() { return url; }
+    }
 }

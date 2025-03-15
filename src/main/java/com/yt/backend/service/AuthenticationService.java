@@ -1,15 +1,20 @@
-package com.yt.backend.auth;
+package com.yt.backend.service;
 
-import com.yt.backend.config.JwtService;
+import com.yt.backend.dto.AuthenticationRequest;
+import com.yt.backend.dto.AuthenticationResponse;
+import com.yt.backend.dto.RegisterRequest;
+import com.yt.backend.dto.RegisterResponse;
 import com.yt.backend.event.RegistrationCompleteEvent;
 import com.yt.backend.model.user.Role;
 import com.yt.backend.model.user.User;
 import com.yt.backend.repository.TokenRepository;
 import com.yt.backend.repository.UserRepository;
 import com.yt.backend.repository.VerificationTokenRepository;
-import com.yt.backend.token.Token;
-import com.yt.backend.token.TokenType;
-import com.yt.backend.token.VerificationToken;
+import com.yt.backend.security.JwtService;
+import com.yt.backend.security.Token;
+import com.yt.backend.security.TokenType;
+import com.yt.backend.security.VerificationToken;
+
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.lang3.RandomStringUtils;
@@ -18,8 +23,11 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Calendar;
+import java.util.Collections;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -34,28 +42,29 @@ public class AuthenticationService {
     private final ApplicationEventPublisher publisher;
 
 
-    public AuthenticationResponse register(RegisterRequest request,HttpServletRequest httpRequest) {
-        var user = User.builder()
+    public RegisterResponse register(RegisterRequest request, HttpServletRequest httpRequest) {
+        User user = User.builder()
                 .firstname(request.getFirstname())
                 .lastname(request.getLastname())
                 .email(request.getEmail())
                 .userAddress(request.getUserAddress())
                 .password(passwordEncoder.encode(request.getPassword()))
                 .role(request.getRole())
+                .status(false)  // Explicitly set status to false for email verification
                 .build();
         String customIdentifier = generateCustomIdentifier(user.getRole());
         user.setCustomIdentifier(customIdentifier);
-        var savedUser = repository.save(user);
-        var jwtToken = jwtService.generateToken(user);
+        User savedUser = repository.save(user);
+        String jwtToken = jwtService.generateToken(savedUser);
         saveUserToken(savedUser, jwtToken);
-        AuthenticationResponse authenticationResponse = AuthenticationResponse.builder()
+        RegisterResponse registrationResponse = RegisterResponse.builder()
+                .firstname(savedUser.getFirstname())
+                .lastname(savedUser.getLastname())
                 .token(jwtToken)
-                .firstname(request.getFirstname())
-                .lastname(request.getLastname())
                 .build();
         // Publish the RegistrationCompleteEvent
         publishRegistrationCompleteEvent(savedUser, httpRequest);
-        return authenticationResponse;
+        return registrationResponse;
     }
 
     private void publishRegistrationCompleteEvent(User user, HttpServletRequest request) {
@@ -68,42 +77,51 @@ public class AuthenticationService {
         var verificationToken = new VerificationToken(token,theUser);
         verificationTokenRepository.save(verificationToken);
     }
+    @Transactional
     public String validateToken(String theToken) {
         VerificationToken token = verificationTokenRepository.findByToken(theToken);
-        if(token == null){
-            return "Invalid verification token";
+        if (token == null) {
+            throw new IllegalArgumentException("Invalid verification token");
         }
+        
         User user = token.getUser();
         Calendar calendar = Calendar.getInstance();
-        if ((token.getExpirationTime().getTime() - calendar.getTime().getTime()) <= 0){
+        if ((token.getExpirationTime().getTime() - calendar.getTime().getTime()) <= 0) {
             verificationTokenRepository.delete(token);
-            return "Token already expired";
+            throw new IllegalArgumentException("Token has expired");
         }
+        
         user.setStatus(true);
         userRepository.save(user);
+        verificationTokenRepository.delete(token); // Delete the token after successful validation
         return "valid";
     }
-    public AuthenticationResponse authenticate(AuthenticationRequest request) {
+    @Transactional
+    public Map<String, String> authenticate(AuthenticationRequest request) {
+        // First check if user exists and is verified
+        var user = repository.findByEmail(request.getEmail());
+        if (user == null) {
+            throw new IllegalArgumentException("User not found");
+        }
+        if (!user.isStatus()) {
+            throw new IllegalArgumentException("Email not verified. Please verify your email first.");
+        }
+
+        // Then proceed with authentication
         authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(
                         request.getEmail(),
                         request.getPassword()
-
                 )
         );
-        var user = repository.findByEmail(request.getEmail());
 
         var jwtToken = jwtService.generateToken(user);
         revokeAllUserTokens(user);
         saveUserToken(user, jwtToken);
-        return AuthenticationResponse.builder()
-                .token(jwtToken)
-                .email(request.getEmail())
-                .role(user.getRole())
-                .build();
+        return Collections.singletonMap("token", jwtToken);
     }
     public void revokeAllUserTokens(User user) {
-        var validUserTokens = tokenRepository.findAllValidTokenByUser((int) user.getId());
+        var validUserTokens = tokenRepository.findAllValidTokensByUser(user.getId());
         if (validUserTokens.isEmpty())
             return;
         validUserTokens.forEach(token -> {

@@ -1,6 +1,5 @@
 package com.yt.backend.model;
 
-import jakarta.persistence.Embeddable;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -23,6 +22,17 @@ public class Adress {
     private String provinceName;
     private String postalCode;
     private String city;
-    private String country;}
+    private String country;
+
+
+    // Getters
+    public String getStreetName() { return streetName; }
+    public Long getStreetNumber() { return streetNumber; }
+    public String getStreetType() { return streetType; }
+    public String getCity() { return city; }
+    public String getProvinceName() { return provinceName; }
+    public String getPostalCode() { return postalCode; }
+    public String getCountry() { return country; }
+}
 
 

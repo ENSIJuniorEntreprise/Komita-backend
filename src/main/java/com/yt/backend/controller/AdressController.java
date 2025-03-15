@@ -6,17 +6,18 @@ import org.springframework.http.HttpStatus;
 import io.swagger.v3.oas.annotations.Operation;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/v1/auth/adresses")
+@RequestMapping("/api/v1/adresses")
+@RequiredArgsConstructor
 public class AdressController {
 
     private final AdressService adressService;
-    public AdressController(AdressService adressService) {
-        this.adressService = adressService;
-    }
+
     @Operation(summary = "Get all addresses", description = "Retrieve a list of all addresses")
     @GetMapping("/allAdress")
     public ResponseEntity<List<Adress>> getAllAdresses() {

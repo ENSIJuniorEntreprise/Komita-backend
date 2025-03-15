@@ -1,12 +1,14 @@
-package com.yt.backend.auth;
+package com.yt.backend.service;
 
 import com.yt.backend.model.user.User;
 import com.yt.backend.model.user.Role;
 import com.yt.backend.repository.UserRepository;
+import com.yt.backend.security.JwtService;
+import com.yt.backend.security.Token;
+import com.yt.backend.security.TokenType;
 import com.yt.backend.repository.TokenRepository;
-import com.yt.backend.token.Token;
-import com.yt.backend.token.TokenType;
-import com.yt.backend.config.JwtService;
+import com.yt.backend.dto.AuthenticationResponse;
+
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.springframework.context.annotation.Bean;
@@ -98,7 +100,7 @@ public class OAuth2Service {
     // }
 
     public void revokeAllUserTokens(User user) {
-        var validUserTokens = tokenRepository.findAllValidTokenByUser((int) user.getId());
+        var validUserTokens = tokenRepository.findAllValidTokensByUser(user.getId());
         if (validUserTokens.isEmpty())
             return;
         validUserTokens.forEach(token -> {

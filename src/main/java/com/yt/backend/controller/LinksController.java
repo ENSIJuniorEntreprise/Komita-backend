@@ -17,7 +17,7 @@ import java.util.List;
 
 
 @RestController
-@RequestMapping("/api/v1/auth/link")
+@RequestMapping("/api/v1/link")
 @AllArgsConstructor
 public class LinksController {
 

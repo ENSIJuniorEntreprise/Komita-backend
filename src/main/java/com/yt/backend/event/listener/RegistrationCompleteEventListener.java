@@ -1,9 +1,10 @@
 package com.yt.backend.event.listener;
 
 
-import com.yt.backend.auth.AuthenticationService;
 import com.yt.backend.event.RegistrationCompleteEvent;
 import com.yt.backend.model.user.User;
+import com.yt.backend.service.AuthenticationService;
+
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;

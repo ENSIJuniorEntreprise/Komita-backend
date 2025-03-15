@@ -17,7 +17,7 @@ import org.springframework.http.ResponseEntity;
 
 import java.util.List;
 
-@RequestMapping("/api/v1/auth")
+@RequestMapping("/api/v1")
 @RestController
 public class KeywordController {
 

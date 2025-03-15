@@ -1,18 +1,24 @@
 package com.yt.backend.controller;
 
-
 import com.yt.backend.model.user.User;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import com.yt.backend.model.Consultation;
 import com.yt.backend.service.ConsultationService;
+import com.yt.backend.exception.ResourceNotFoundException;
+import com.yt.backend.exception.BusinessException;
 import io.swagger.v3.oas.annotations.Operation;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import org.springframework.validation.annotation.Validated;
+import jakarta.validation.Valid;
+
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/v1/auth/consultations")
+@RequestMapping("/api/v1/consultations")
+@Validated
+@CrossOrigin(origins = "*")
 public class ConsultationController {
     private final ConsultationService consultationService;
 
@@ -28,9 +34,19 @@ public class ConsultationController {
      * @return ResponseEntity containing the created consultation.
      */
 
-    @Operation(summary = "Consult a service", description = "Consult a service by providing its ID and the requesting user")
+    @Operation(summary = "Consult a service")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Consultation created successfully"),
+        @ApiResponse(responseCode = "400", description = "Invalid input"),
+        @ApiResponse(responseCode = "404", description = "Service not found")
+    })
     @PostMapping("/{serviceId}/consult")
-    public ResponseEntity<Consultation> consultService(@PathVariable Long serviceId, @RequestBody User user) {
+    public ResponseEntity<Consultation> consultService(
+            @PathVariable Long serviceId,
+            @Valid @RequestBody User user) {
+        if (user == null) {
+            throw new BusinessException("User data is required");
+        }
         Consultation consultation = consultationService.createConsultation(serviceId, user);
         return ResponseEntity.ok(consultation);
     }
@@ -40,10 +56,18 @@ public class ConsultationController {
      *
      * @return List of all consultations.
      */
-    @Operation(summary = "Get all consultations", description = "Retrieve a list of all consultations")
-    @GetMapping("/getAll")
-    public List<Consultation> getAllConsultations() {
-        return consultationService.getAllConsultations();
+    @Operation(summary = "Get all consultations")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Consultations retrieved successfully"),
+        @ApiResponse(responseCode = "404", description = "No consultations found")
+    })
+    @GetMapping
+    public ResponseEntity<List<Consultation>> getAllConsultations() {
+        List<Consultation> consultations = consultationService.getAllConsultations();
+        if (consultations.isEmpty()) {
+            throw new ResourceNotFoundException("No consultations found");
+        }
+        return ResponseEntity.ok(consultations);
     }
 
     /**
@@ -53,50 +77,59 @@ public class ConsultationController {
      * @return ResponseEntity containing the consultation, or 404 if not found.
      */
 
-    @Operation(summary = "Get a consultation by ID", description = "Retrieve a consultation by its ID")
+    @Operation(summary = "Get consultation by ID")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Consultation retrieved successfully"),
+        @ApiResponse(responseCode = "404", description = "Consultation not found")
+    })
     @GetMapping("/{id}")
     public ResponseEntity<Consultation> getConsultationById(@PathVariable Long id) {
         Consultation consultation = consultationService.getConsultationById(id);
-        if (consultation != null) {
-            return ResponseEntity.ok(consultation);
-        } else {
-            return ResponseEntity.notFound().build();
-        }
-
-        /**
-         * Delete a consultation by ID.
-         *
-         * @param id The ID of the consultation to delete.
-         * @return ResponseEntity indicating success or failure of deletion.
-         */
+        return ResponseEntity.ok(consultation);
     }
 
-    @Operation(summary = "Delete a consultation by ID", description = "Delete a consultation by providing its ID")
+    /**
+     * Delete a consultation by ID.
+     *
+     * @param id The ID of the consultation to delete.
+     * @return ResponseEntity indicating success or failure of deletion.
+     */
+    @Operation(summary = "Delete consultation")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "204", description = "Consultation deleted successfully"),
+        @ApiResponse(responseCode = "404", description = "Consultation not found")
+    })
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteConsultation(@PathVariable Long id) {
         consultationService.deleteConsultation(id);
         return ResponseEntity.noContent().build();
     }
 
-    @Operation(summary = "Get consultations by user", description = "Retrieve consultations associated with a user by providing the user ID")
+    @Operation(summary = "Get consultations by user ID")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Consultations retrieved successfully"),
+        @ApiResponse(responseCode = "404", description = "No consultations found for user")
+    })
     @GetMapping("/user/{userId}")
-    public ResponseEntity<Consultation> getConsultationsByUser(@PathVariable Long userId) {
-        Consultation consultations = consultationService.getConsultationsByUser(userId);
-        if (consultations != null) {
-            return ResponseEntity.ok(consultations);
-        } else {
-            return ResponseEntity.notFound().build();
+    public ResponseEntity<List<Consultation>> getConsultationsByUser(@PathVariable Long userId) {
+        List<Consultation> consultations = consultationService.getConsultationsByUser(userId);
+        if (consultations.isEmpty()) {
+            throw new ResourceNotFoundException("No consultations found for user with id: " + userId);
         }
+        return ResponseEntity.ok(consultations);
     }
 
-    @Operation(summary = "Get consultations by service", description = "Retrieve consultations associated with a service by providing the service ID")
+    @Operation(summary = "Get consultations by service ID")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Consultations retrieved successfully"),
+        @ApiResponse(responseCode = "404", description = "No consultations found for service")
+    })
     @GetMapping("/service/{serviceId}")
-    public ResponseEntity<Consultation> getConsultationsByService(@PathVariable Long serviceId) {
-        Consultation consultations = consultationService.getConsultationsByService(serviceId);
-        if (consultations != null) {
-            return ResponseEntity.ok(consultations);
-        } else {
-            return ResponseEntity.notFound().build();
-}
-}
+    public ResponseEntity<List<Consultation>> getConsultationsByService(@PathVariable Long serviceId) {
+        List<Consultation> consultations = consultationService.getConsultationsByService(serviceId);
+        if (consultations.isEmpty()) {
+            throw new ResourceNotFoundException("No consultations found for service with id: " + serviceId);
+        }
+        return ResponseEntity.ok(consultations);
+    }
 }

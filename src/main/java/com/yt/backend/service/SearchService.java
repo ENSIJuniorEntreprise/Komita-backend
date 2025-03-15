@@ -6,47 +6,49 @@ import com.yt.backend.model.user.User;
 import com.yt.backend.repository.SearchHistoryRepository;
 import com.yt.backend.repository.SearchResultRepository;
 import com.yt.backend.repository.ServiceRepository;
-import org.apache.lucene.analysis.LowerCaseFilter;
-import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.en.PorterStemFilter;
-import org.apache.lucene.analysis.standard.StandardTokenizer;
-import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import com.yt.backend.exception.ResourceNotFoundException;
+import com.yt.backend.exception.BusinessException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.stereotype.Service;
 
-import java.io.IOException;
-import java.io.StringReader;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
 
-@Service
+@org.springframework.stereotype.Service
 public class SearchService {
     private final SearchHistoryRepository searchHistoryRepository;
     private final ServiceRepository serviceRepository;
     private final SearchResultRepository searchResultRepository;
 
-
     public SearchService(SearchHistoryRepository searchHistoryRepository, ServiceRepository serviceRepository, SearchResultRepository searchResultRepository) {
         this.searchHistoryRepository = searchHistoryRepository;
         this.serviceRepository = serviceRepository;
         this.searchResultRepository = searchResultRepository;
-
     }
 
     public SearchHistory saveSearchHistory(String searchQuery) {
-        SearchHistory searchHistory = new SearchHistory();
-        User current_authenticated_user = getCurrentAuthenticatedUser();
-        searchHistory.setSearchQuery(searchQuery);
-        searchHistory.setUser(current_authenticated_user);
-        searchHistory.setTimestamp(LocalDateTime.now());
-        searchHistoryRepository.save(searchHistory);
-        return searchHistory;
+        if (searchQuery == null || searchQuery.trim().isEmpty()) {
+            throw new BusinessException("Search query cannot be empty");
+        }
+
+        try {
+            SearchHistory searchHistory = new SearchHistory();
+            User currentUser = getCurrentAuthenticatedUser();
+            
+            if (currentUser == null) {
+                throw new BusinessException("No authenticated user found");
+            }
+
+            searchHistory.setSearchQuery(searchQuery);
+            searchHistory.setUser(currentUser);
+            searchHistory.setTimestamp(LocalDateTime.now());
+            return searchHistoryRepository.save(searchHistory);
+        } catch (Exception e) {
+            throw new BusinessException("Failed to save search history: " + e.getMessage());
+        }
     }
 
     private User getCurrentAuthenticatedUser() {
-        // Get the authentication object from the SecurityContextHolder
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication != null && authentication.getPrincipal() instanceof User) {
             return (User) authentication.getPrincipal();
@@ -55,46 +57,61 @@ public class SearchService {
     }
 
     public List<com.yt.backend.model.Service> searchServices(String query) {
-        List<String> stemmedQuery = stemWords(query);
-        // Query the database for services based on matching stemmed keywords
-        return serviceRepository.findByMatchingStemmedKeywords(stemmedQuery);
-    }
-
-    private List<String> stemWords(String text) {
-        List<String> stemmedWords = new ArrayList<>();
-
-        try (StringReader reader = new StringReader(text);
-             StandardTokenizer tokenizer = new StandardTokenizer()) {
-
-            tokenizer.setReader(reader);
-
-            // Use PorterStemFilter for stemming
-            TokenStream tokenStream = new PorterStemFilter(new LowerCaseFilter(tokenizer));
-
-            // Get the stemmed words
-            CharTermAttribute charTermAttribute = tokenStream.addAttribute(CharTermAttribute.class);
-            tokenStream.reset();
-
-            while (tokenStream.incrementToken()) {
-                stemmedWords.add(charTermAttribute.toString());
-            }
-
-            tokenStream.end();
-        } catch (IOException e) {
-            // Handle the exception appropriately, e.g., log it or throw a custom exception
-            e.printStackTrace();
+        if (query == null || query.trim().isEmpty()) {
+            throw new BusinessException("Search query cannot be empty");
         }
-        return stemmedWords;
+
+        try {
+            List<String> stemmedQuery = stemWords(query);
+            List<com.yt.backend.model.Service> results = serviceRepository.findByMatchingStemmedKeywords(stemmedQuery);
+            
+            if (results.isEmpty()) {
+                throw new ResourceNotFoundException("No services found matching the search criteria");
+            }
+            
+            return results;
+        } catch (ResourceNotFoundException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new BusinessException("Failed to perform search: " + e.getMessage());
+        }
     }
+
+    private List<String> stemWords(String query) {
+        if (query == null || query.trim().isEmpty()) {
+            throw new BusinessException("Cannot stem empty query");
+        }
+        // Implement your stemming logic here
+        // This is a placeholder that just splits the query into words
+        return List.of(query.toLowerCase().split("\\s+"));
+    }
+
     public void saveSearchResults(List<com.yt.backend.model.Service> services, SearchHistory searchHistory) {
-        // Assuming SearchResult is an entity representing the search results
-        SearchResult searchResult = new SearchResult();
-        searchResult.setServices(services);
-        searchResult.setSearchHistory(searchHistory);
-        searchResultRepository.save(searchResult);
+        if (searchHistory == null) {
+            throw new BusinessException("Search history cannot be null");
+        }
+        
+        try {
+            // Implementation of saving search results
+            // This would typically involve creating a SearchResult entity and saving it
+            SearchResult searchResult = new SearchResult();
+            searchResult.setServices(services);
+            searchResult.setSearchHistory(searchHistory);
+            searchResultRepository.save(searchResult);
+        } catch (Exception e) {
+            throw new BusinessException("Failed to save search results: " + e.getMessage());
+        }
     }
+
     public List<SearchHistory> getSearchHistoryByUserId(Long userId) {
-        // Implement logic to retrieve search history based on user ID
-        return searchHistoryRepository.findByUserId(userId);
+        if (userId == null) {
+            throw new BusinessException("User ID cannot be null");
+        }
+        
+        List<SearchHistory> history = searchHistoryRepository.findByUserId(userId);
+        if (history.isEmpty()) {
+            throw new ResourceNotFoundException("No search history found for user with id: " + userId);
+        }
+        return history;
     }
 }

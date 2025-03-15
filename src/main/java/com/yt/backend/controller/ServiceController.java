@@ -1,36 +1,40 @@
 package com.yt.backend.controller;
 
-import com.yt.backend.model.Adress;
-import com.yt.backend.model.Image;
-import com.yt.backend.model.Keyword;
-import com.yt.backend.model.Links;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.yt.backend.model.*;
 import com.yt.backend.model.category.Category;
 import com.yt.backend.model.category.Subcategory;
 import com.yt.backend.model.user.Role;
 import com.yt.backend.model.user.User;
 import com.yt.backend.repository.CategoryRepository;
-import com.yt.backend.repository.SubcategoryRepository;
-import com.yt.backend.repository.UserRepository;
 import com.yt.backend.repository.ImageRepository;
 import com.yt.backend.repository.KeywordRepository;
+import com.yt.backend.repository.ServiceRepository;
+import com.yt.backend.repository.SubcategoryRepository;
+import com.yt.backend.repository.UserRepository;
 import com.yt.backend.service.ServiceService;
+import com.yt.backend.service.ImageService;
+import com.yt.backend.exception.ResourceNotFoundException;
+import com.yt.backend.exception.BusinessException;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
-import org.codehaus.plexus.resource.loader.ResourceNotFoundException;
 import org.springframework.security.core.Authentication;
-
-import com.yt.backend.repository.ServiceRepository;
+import org.springframework.http.MediaType;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import com.yt.backend.model.Service;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
-@RequestMapping("/api/v1/auth")
+@RequestMapping("/api/v1")
 @RestController
+@CrossOrigin(origins = "*")
 public class ServiceController {
 
     private final ServiceRepository serviceRepository;
@@ -39,12 +43,13 @@ public class ServiceController {
     private final SubcategoryRepository subcategoryRepository;
     private final KeywordRepository keywordRepository;
     private final ImageRepository imageRepository;
-
+    private final ImageService imageService;
     private final ServiceService serviceService;
 
     public ServiceController(ServiceRepository serviceRepository, UserRepository userRepository,
             CategoryRepository categoryRepository, SubcategoryRepository subcategoryRepository,
-            ServiceService serviceService, KeywordRepository keywordRepository, ImageRepository imageRepository) {
+            ServiceService serviceService, KeywordRepository keywordRepository, ImageRepository imageRepository,
+            ImageService imageService) {
         this.serviceRepository = serviceRepository;
         this.userRepository = userRepository;
         this.categoryRepository = categoryRepository;
@@ -52,80 +57,118 @@ public class ServiceController {
         this.keywordRepository = keywordRepository;
         this.serviceService = serviceService;
         this.imageRepository = imageRepository;
-
+        this.imageService = imageService;
     }
 
     @Operation(summary = "Get all services", description = "Retrieve a list of all services")
     @GetMapping("/services")
     public ResponseEntity<List<Service>> getAllServices() {
-        List<Service> services = new ArrayList<>(serviceRepository.findAll());
+        List<Service> services = serviceRepository.findAll();
         if (services.isEmpty()) {
-            return new ResponseEntity<>(HttpStatus.NO_CONTENT);
+            throw new ResourceNotFoundException("No services found");
         }
-        return new ResponseEntity<>(services, HttpStatus.OK);
+        return ResponseEntity.ok(services);
     }
 
     @Operation(summary = "Get service by ID", description = "Retrieve a service by its unique identifier")
     @GetMapping("/services/{id}")
-    public ResponseEntity<Service> getServiceById(@PathVariable("id") long id) throws ResourceNotFoundException {
+    public ResponseEntity<Service> getServiceById(@PathVariable("id") long id) {
         Service service = serviceRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Not found Service with id = " + id));
-
-        return new ResponseEntity<>(service, HttpStatus.OK);
+                .orElseThrow(() -> new ResourceNotFoundException("Service not found with id: " + id));
+        return ResponseEntity.ok(service);
     }
 
     @Operation(summary = "Create a new service", description = "Allows authorized users to create a new service")
     @ApiResponse(responseCode = "201", description = "Service created successfully")
     @ApiResponse(responseCode = "400", description = "Invalid request body or insufficient privileges")
-    @PostMapping("/services/createService")
-    public ResponseEntity<?> createService(@RequestBody Service service) {
-        User professional = service.getProfessional();
-        Category category = service.getCategory();
-        Subcategory subcategory = service.getSubcategory();
-        Adress serviceAdress = service.getAdress();
-        Links serviceLinks = service.getLinks();
+    @PostMapping(value = "/services/createService", consumes = { MediaType.MULTIPART_FORM_DATA_VALUE })
+    public ResponseEntity<Service> createService(
+            @RequestPart("service") String serviceJson,
+            @RequestPart(value = "images", required = false) List<MultipartFile> images) {
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+            Service service = mapper.readValue(serviceJson, Service.class);
+            return createSingleService(service, images);
+        } catch (JsonProcessingException e) {
+            throw new BusinessException("Invalid JSON format: " + e.getMessage());
+        }
+    }
 
-        Optional<Category> existingCategory = categoryRepository.findById(category.getId());
-        Optional<User> existingProfessional = userRepository.findById(professional.getId());
+    private ResponseEntity<Service> createSingleService(Service service, List<MultipartFile> imageFiles) {
+        User professional = userRepository.findById(service.getProfessional().getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Professional not found with id: " + service.getProfessional().getId()));
+                
+        Category category = categoryRepository.findById(service.getCategory().getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Category not found with id: " + service.getCategory().getId()));
+                
+        Subcategory subcategory = null;
+        if (service.getSubcategory() != null && service.getSubcategory().getId() != null) {
+            subcategory = subcategoryRepository.findById(service.getSubcategory().getId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Subcategory not found with id: " + service.getSubcategory().getId()));
+        }
 
-        if (existingProfessional.isPresent() && existingCategory.isPresent()) {
-            professional = existingProfessional.get();
-            category = existingCategory.get();
-            service.setProfessional(professional);
-            service.setCategory(category);
-            service.setSubcategory(subcategory);
-            service.setAdress(serviceAdress);
-            service.setLinks(serviceLinks);
+        if (!Role.valueOf("ADMIN").equals(professional.getRole()) && !Role.valueOf("PROFESSIONAL").equals(professional.getRole())) {
+            throw new BusinessException("The user is not a professional or an admin. Please upgrade your privileges and try again!");
+        }
+            
+        // Create new service with the fetched entities
+        Service _service = new Service(
+            service.getName(),
+            service.getDescription(),
+            professional,
+            category,
+            subcategory,
+            Boolean.TRUE,
+            service.getAdress(),
+            service.getLinks()
+        );
+        
+        // Save the service first to get its ID
+        _service = serviceRepository.save(_service);
 
-            if (Role.valueOf("ADMIN").equals(professional.getRole())
-                    || Role.valueOf("PROFESSIONAL").equals(professional.getRole())) {
-                Service _service = serviceRepository.save(new Service(service.getName(), service.getDescription(),
-                        professional, category, subcategory, Boolean.TRUE, serviceAdress, serviceLinks));
-
-                // Handle keywords
-                if (service.getKeywordList() != null && !service.getKeywordList().isEmpty()) {
-                    for (Keyword keyword : service.getKeywordList()) {
-                        _service.addKeyword(keyword); // Use the helper method
-                    }
-                    keywordRepository.saveAll(_service.getKeywordList()); // Save all keywords
-                }
-
-                // Handle images
-                if (service.getImages() != null && !service.getImages().isEmpty()) {
-                    for (Image image : service.getImages()) {
-                        image.setService(_service); // Link image to service
-                    }
-                    imageRepository.saveAll(service.getImages()); // Save all images
-                }
-
-                return new ResponseEntity<>(_service, HttpStatus.CREATED);
-            } else {
-                return ResponseEntity.badRequest().body(
-                        "The user is not a professional or an admin. Please upgrade your privileges and try again!");
+        // Handle keywords
+        if (service.getKeywordList() != null && !service.getKeywordList().isEmpty()) {
+            for (Keyword keyword : service.getKeywordList()) {
+                keyword.setService(_service);
+                _service.addKeyword(keyword);
             }
-        } else {
-            return ResponseEntity.badRequest().body("Professional with ID " + professional.getId() + " not found"
-                    + " or category with ID " + category.getId() + " not found");
+            keywordRepository.saveAll(_service.getKeywordList());
+        }
+
+        // Handle image uploads
+        if (imageFiles != null && !imageFiles.isEmpty()) {
+            List<Image> images = new ArrayList<>();
+            for (MultipartFile imageFile : imageFiles) {
+                if (!imageFile.isEmpty()) {
+                    validateImageFile(imageFile);
+                    try {
+                        Image image = imageService.addImageToService(imageFile, _service.getId());
+                        images.add(image);
+                    } catch (IOException e) {
+                        throw new BusinessException("Error processing image file: " + e.getMessage());
+                    }
+                }
+            }
+            _service.setImages(images);
+        }
+
+        // Save the final service with all relationships
+        _service = serviceRepository.save(_service);
+        return new ResponseEntity<>(_service, HttpStatus.CREATED);
+    }
+
+    private void validateImageFile(MultipartFile file) {
+        if (file.isEmpty()) {
+            throw new BusinessException("File is empty");
+        }
+
+        String contentType = file.getContentType();
+        if (contentType == null || !contentType.startsWith("image/")) {
+            throw new BusinessException("Invalid file type. Only images are allowed.");
+        }
+
+        if (file.getSize() > 5 * 1024 * 1024) {
+            throw new BusinessException("File size too large. Maximum size allowed is 5MB");
         }
     }
 
@@ -133,76 +176,75 @@ public class ServiceController {
     @ApiResponse(responseCode = "200", description = "Service updated successfully")
     @ApiResponse(responseCode = "403", description = "Insufficient privileges")
     @PutMapping("/services/updateService/{id}")
-    public ResponseEntity<?> updateService(@PathVariable("id") long id, @RequestBody Service service,
-            Authentication authentication) throws ResourceNotFoundException {
-        boolean role = serviceService.isAdminOrProfessional(authentication);
-        if (role) {
-            Service _service = serviceRepository.findById(id)
-                    .orElseThrow(() -> new ResourceNotFoundException("Not found Service with id = " + id));
-    
-            // Update all fields
-            _service.setName(service.getName());
-            _service.setDescription(service.getDescription());
-            _service.setState(service.getState());
-            _service.setCategory(service.getCategory());
-            _service.setSubcategory(service.getSubcategory());
-            _service.setProfessional(service.getProfessional());
-            _service.setAdress(service.getAdress());
-            _service.setLinks(service.getLinks());
-            _service.setChecked(service.getChecked());
-    
-            // Handle keywords
-            if (service.getKeywordList() != null) {
-                _service.getKeywordList().clear(); // Clear existing keywords
-                for (Keyword keyword : service.getKeywordList()) {
-                    keyword.setService(_service); // Set the bidirectional relationship
-                    _service.getKeywordList().add(keyword); // Add new keywords
-                }
-            }
-    
-            // Handle images
-            if (service.getImages() != null) {
-                _service.getImages().clear(); // Clear existing images
-                for (Image image : service.getImages()) {
-                    image.setService(_service); // Set the bidirectional relationship
-                    _service.getImages().add(image); // Add new images
-                }
-            }
-    
-            // Save the updated service
-            Service updatedService = serviceRepository.save(_service);
-            return new ResponseEntity<>(updatedService, HttpStatus.OK);
-        } else {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Insufficient privileges");
+    public ResponseEntity<Service> updateService(@PathVariable("id") long id, @RequestBody Service service,
+            Authentication authentication) {
+        if (!serviceService.isAdminOrProfessional(authentication)) {
+            throw new BusinessException("Insufficient privileges");
         }
+
+        Service _service = serviceRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Service not found with id: " + id));
+
+        // Update all fields
+        _service.setName(service.getName());
+        _service.setDescription(service.getDescription());
+        _service.setState(service.getState());
+        _service.setCategory(service.getCategory());
+        _service.setSubcategory(service.getSubcategory());
+        _service.setProfessional(service.getProfessional());
+        _service.setAdress(service.getAdress());
+        _service.setLinks(service.getLinks());
+        _service.setChecked(service.getChecked());
+
+        // Handle keywords
+        if (service.getKeywordList() != null) {
+            _service.getKeywordList().clear();
+            for (Keyword keyword : service.getKeywordList()) {
+                keyword.setService(_service);
+                _service.getKeywordList().add(keyword);
+            }
+        }
+
+        // Handle images
+        if (service.getImages() != null) {
+            _service.getImages().clear();
+            for (Image image : service.getImages()) {
+                image.setService(_service);
+                _service.getImages().add(image);
+            }
+        }
+
+        Service updatedService = serviceRepository.save(_service);
+        return ResponseEntity.ok(updatedService);
     }
     
     @Operation(summary = "Delete a service by ID", description = "Allows authorized users to delete a service by its ID")
     @ApiResponse(responseCode = "204", description = "Service deleted successfully")
     @ApiResponse(responseCode = "401", description = "Unauthorized")
     @DeleteMapping("/services/deleteService/{id}")
-    public ResponseEntity<HttpStatus> deleteService(@PathVariable("id") long id, Authentication authentication) {
-        boolean role = serviceService.isAdminOrProfessional(authentication);
-        if (role) {
-            serviceRepository.deleteById(id);
-            return new ResponseEntity<>(HttpStatus.NO_CONTENT);
-        } else {
-            return new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
+    public ResponseEntity<Void> deleteService(@PathVariable("id") long id, Authentication authentication) {
+        if (!serviceService.isAdminOrProfessional(authentication)) {
+            throw new BusinessException("Insufficient privileges");
         }
+
+        if (!serviceRepository.existsById(id)) {
+            throw new ResourceNotFoundException("Service not found with id: " + id);
+        }
+
+        serviceRepository.deleteById(id);
+        return ResponseEntity.noContent().build();
     }
 
     @Operation(summary = "Delete all services", description = "Allows authorized users to delete all services")
     @ApiResponse(responseCode = "204", description = "All services deleted successfully")
     @ApiResponse(responseCode = "401", description = "Unauthorized")
     @DeleteMapping("/services/deleteAllServices")
-    public ResponseEntity<HttpStatus> deleteAllServices(Authentication authentication) {
-        boolean role = serviceService.isAdminOrProfessional(authentication);
-        if (role) {
-            serviceRepository.deleteAll();
-            return new ResponseEntity<>(HttpStatus.NO_CONTENT);
-        } else {
-            return new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
+    public ResponseEntity<Void> deleteAllServices(Authentication authentication) {
+        if (!serviceService.isAdminOrProfessional(authentication)) {
+            throw new BusinessException("Insufficient privileges");
         }
+        serviceRepository.deleteAll();
+        return ResponseEntity.noContent().build();
     }
 
     @Operation(summary = "Get recent professionals", description = "Get a list of recent professionals with an optional limit on the number of rows returned Max-Rows.")
@@ -324,3 +366,4 @@ public class ServiceController {
     }
 
 }
+

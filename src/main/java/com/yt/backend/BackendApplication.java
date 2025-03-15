@@ -1,7 +1,8 @@
 package com.yt.backend;
 
-import com.yt.backend.auth.AuthenticationService;
-import com.yt.backend.auth.RegisterRequest;
+import com.yt.backend.dto.RegisterRequest;
+import com.yt.backend.service.AuthenticationService;
+
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;

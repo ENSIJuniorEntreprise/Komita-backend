@@ -19,6 +19,6 @@ public interface UserService {
     public User updateRole(Long id);
     public User updateUserProfileImage(Long userId, String profileImageURL);
     public User getLoggedInUserDetails(String email);
-    public String getUserProfileImagePath(Long userId);
-    public String getUserProfileImagePathByEmail(String email);
+    public User updateUserProfileImage(Long userId, MultipartFile file) throws IOException;
+    public byte[] getUserProfileImageBytes(Long userId);
 }

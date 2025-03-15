@@ -2,10 +2,16 @@ server:
   port: 8085
 spring:
   datasource:
-    url: jdbc:postgresql://dpg-cu64ho8gph6c73c3keb0-a.oregon-postgres.render.com/komitadb
-    username: komitadb_user
-    password: 7wtBYHrFimgaVaaDM7xQGCPoDnRcXIXs
+    url: jdbc:postgresql://localhost:5432/komita
+    username: postgres
+    password: selim
     driver-class-name: org.postgresql.Driver
+  flyway:
+    locations: classpath:db/migration 
+    encoding: UTF-8
+    enabled: true
+    baseline-on-migrate: true
+    
   jpa:
     hibernate:
       search:

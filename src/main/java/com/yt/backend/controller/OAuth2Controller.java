@@ -1,8 +1,12 @@
-package com.yt.backend.auth;
+package com.yt.backend.controller;
 import org.springframework.http.HttpStatus;
 
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
+
+import com.yt.backend.dto.AuthenticationResponse;
+import com.yt.backend.service.OAuth2Service;
+
 import org.springframework.http.ResponseEntity;
 
 import java.util.Map;

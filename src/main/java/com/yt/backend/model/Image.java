@@ -6,6 +6,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.Type;
 
 @Data
 @Builder
@@ -17,19 +18,44 @@ public class Image {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-    private String imageURL;
+
+    @Basic(fetch = FetchType.LAZY)
+    @Column(name = "image_data", columnDefinition = "bytea")
+    private byte[] imageData;
+
+    @Column(name = "content_type")
+    private String contentType;
+
+    @Column(name = "file_name")
+    private String fileName;
 
     @ManyToOne
     @JoinColumn(name = "service_id")
     @JsonBackReference
     private Service service;
 
-    public String getImageURL() {
-        return imageURL;
+    public byte[] getImageData() {
+        return imageData;
     }
 
-    public void setImageURL(String imageUrl) {
-        this.imageURL = imageUrl;
+    public void setImageData(byte[] imageData) {
+        this.imageData = imageData;
+    }
+
+    public String getContentType() {
+        return contentType;
+    }
+
+    public void setContentType(String contentType) {
+        this.contentType = contentType;
+    }
+
+    public String getFileName() {
+        return fileName;
+    }
+
+    public void setFileName(String fileName) {
+        this.fileName = fileName;
     }
 
     public Long getId() {
@@ -46,5 +72,4 @@ public class Image {
             service.getImages().add(this);
         }
     }
-
 }

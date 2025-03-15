@@ -1,4 +1,4 @@
-package com.yt.backend.token;
+package com.yt.backend.security;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.yt.backend.model.user.User;

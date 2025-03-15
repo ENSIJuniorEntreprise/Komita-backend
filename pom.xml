@@ -7,7 +7,7 @@
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
         <version>3.0.5</version>
-        <relativePath /> <!-- lookup parent from repository -->
+        <relativePath />
     </parent>
     <groupId>com.alibou</groupId>
     <artifactId>security</artifactId>
@@ -134,6 +134,17 @@
             <artifactId>spring-boot-starter-oauth2-client</artifactId>
         </dependency>
 
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-core</artifactId>
+        </dependency>
+        <dependency>
+    <groupId>org.apache.tika</groupId>
+    <artifactId>tika-core</artifactId>
+    <version>2.7.0</version>  <!-- Use the latest version -->
+</dependency>
+
+
 
         <!--        <dependency>-->
         <!--            <groupId>org.springdoc</groupId>-->
@@ -155,6 +166,21 @@
                     </excludes>
                 </configuration>
             </plugin>
+            <plugin>
+                <groupId>org.flywaydb</groupId>
+                <artifactId>flyway-maven-plugin</artifactId>
+                <version>9.5.1</version>
+                <configuration>
+                    <url>jdbc:postgresql://localhost:5432/komita</url>
+                    <user>postgres</user>
+                    <password>selim</password>
+                    <cleanDisabled>false</cleanDisabled>
+                    <baselineOnMigrate>true</baselineOnMigrate>
+                    <schemas>public</schemas>
+                </configuration>
+            </plugin>
+
         </plugins>
     </build>
+
 </project>

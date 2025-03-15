@@ -1,4 +1,4 @@
-package com.yt.backend.config;
+package com.yt.backend.security;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

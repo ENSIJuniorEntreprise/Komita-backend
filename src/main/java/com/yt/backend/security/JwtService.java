@@ -1,4 +1,4 @@
-package com.yt.backend.config;
+package com.yt.backend.security;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;

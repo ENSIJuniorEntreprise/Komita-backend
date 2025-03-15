@@ -1,7 +1,8 @@
 package com.yt.backend.model.user;
 
 import com.yt.backend.model.Adress;
-import com.yt.backend.token.Token;
+import com.yt.backend.security.Token;
+
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -26,7 +27,7 @@ public class User implements UserDetails {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private long id;
 
-    @Column(unique = true) // Define custom identifier with unique constraint
+    @Column(unique = true) 
     private String customIdentifier;
 
     private String firstname;
@@ -48,13 +49,9 @@ public class User implements UserDetails {
     @OneToOne(cascade = CascadeType.ALL)
     private Adress userAddress;
 
-    // Add profileImage field here
+    @Lob
     @Column(name = "profile_image")
-    private String profileImage; // Field to store profile image URL or file path
-
-    public String getProfileImage() {
-        return profileImage;
-    }
+    private byte[] profileImage;
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
@@ -70,7 +67,6 @@ public class User implements UserDetails {
     public String getUsername() {
         return email;
     }
-
 
     @Override
     public boolean isAccountNonExpired() {
@@ -91,6 +87,9 @@ public class User implements UserDetails {
     public boolean isEnabled() {
         return true;
     }
+    public boolean isStatus() {
+        return this.status;
+    }
 
     private String generateCustomIdentifier(Role role) {
         String randomString = RandomStringUtils.randomAlphanumeric(6); // Change length as needed
@@ -99,18 +98,16 @@ public class User implements UserDetails {
 
     // Constructor with profileImage parameter
     public User(String firstname, String lastname, String email, Role role, String password, Adress userAddress,
-            String profileImage) {
+            byte[] profileImage) {
         this.firstname = firstname;
         this.lastname = lastname;
         this.email = email;
         this.role = role;
         this.password = password;
         this.userAddress = userAddress;
-        this.status = true; // Assuming new users are active by default
+        this.status = true; 
         this.customIdentifier = generateCustomIdentifier(role);
-        this.profileImage = profileImage; // Initialize profile image
+        this.profileImage = profileImage; 
     }
 
-    public void setName(Object name) {
-    }
 }

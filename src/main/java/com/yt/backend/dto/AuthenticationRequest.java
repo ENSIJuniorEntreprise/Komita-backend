@@ -1,4 +1,4 @@
-package com.yt.backend.auth;
+package com.yt.backend.dto;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

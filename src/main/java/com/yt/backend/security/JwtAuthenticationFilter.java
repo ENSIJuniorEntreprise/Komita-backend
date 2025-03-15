@@ -1,4 +1,4 @@
-package com.yt.backend.config;
+package com.yt.backend.security;
 
 import com.yt.backend.repository.TokenRepository;
 import jakarta.servlet.FilterChain;

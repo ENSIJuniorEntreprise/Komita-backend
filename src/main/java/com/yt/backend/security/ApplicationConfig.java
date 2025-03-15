@@ -1,4 +1,4 @@
-package com.yt.backend.config;
+package com.yt.backend.security;
 
 import com.yt.backend.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -29,6 +29,7 @@ import static org.springframework.web.bind.annotation.RequestMethod.PATCH;
 @RequiredArgsConstructor
 public class ApplicationConfig {
     private final UserRepository repository;
+
     @Bean
     public UserDetailsService userDetailsService() {
         return repository::findByEmail;
@@ -41,6 +42,7 @@ public class ApplicationConfig {
         authProvider.setPasswordEncoder(passwordEncoder());
         return authProvider;
     }
+
     @Bean
     public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
         return config.getAuthenticationManager();
@@ -50,17 +52,16 @@ public class ApplicationConfig {
     public CorsFilter corsFilter() {
         final UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         final CorsConfiguration config = new CorsConfiguration();
-        config.setAllowCredentials(true);
-        config.setAllowedOrigins(Arrays.asList("http://localhost:4200", "https://komita-frontend.onrender.com, http://192.168.1.6:4200"));
-        config.setAllowedHeaders(Arrays.asList(ORIGIN, CONTENT_TYPE, ACCEPT, AUTHORIZATION));
-        config.setAllowedMethods(Arrays.asList(GET.name(), POST.name(), DELETE.name(), PUT.name(), PATCH.name(), OPTIONS.name()));
+        config.setAllowCredentials(true); 
+
+        config.addAllowedOriginPattern("*"); 
+        config.addAllowedHeader("*"); 
+        config.addAllowedMethod("*");
         config.setExposedHeaders(Arrays.asList("Authorization", "Content-Type", "Accept"));
-    
-        // Register CORS for all paths
+
         source.registerCorsConfiguration("/**", config);
         return new CorsFilter(source);
     }
-    
 
     @Bean
     public PasswordEncoder passwordEncoder() {

@@ -21,7 +21,7 @@ import java.util.Optional;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/v1/auth")
+@RequestMapping("/api/v1")
 public class SubcategoryController {
 
     private final SubcategoryRepository subcategoryRepository;

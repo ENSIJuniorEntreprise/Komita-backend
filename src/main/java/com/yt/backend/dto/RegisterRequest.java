@@ -1,4 +1,4 @@
-package com.yt.backend.auth;
+package com.yt.backend.dto;
 
 import com.yt.backend.model.Adress;
 import com.yt.backend.model.user.Role;
