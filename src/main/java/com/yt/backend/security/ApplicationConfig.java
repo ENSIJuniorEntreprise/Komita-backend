@@ -13,17 +13,8 @@ import org.springframework.security.config.annotation.authentication.configurati
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.web.cors.CorsConfiguration;
-import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
-import org.springframework.web.filter.CorsFilter;
 
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.Properties;
-
-import static org.springframework.http.HttpHeaders.*;
-import static org.springframework.http.HttpMethod.*;
-import static org.springframework.web.bind.annotation.RequestMethod.PATCH;
 
 @Configuration
 @RequiredArgsConstructor
@@ -49,28 +40,12 @@ public class ApplicationConfig {
     }
 
     @Bean
-    public CorsFilter corsFilter() {
-        final UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        final CorsConfiguration config = new CorsConfiguration();
-        config.setAllowCredentials(true); 
-
-        config.addAllowedOriginPattern("*"); 
-        config.addAllowedHeader("*"); 
-        config.addAllowedMethod("*");
-        config.setExposedHeaders(Arrays.asList("Authorization", "Content-Type", "Accept"));
-
-        source.registerCorsConfiguration("/**", config);
-        return new CorsFilter(source);
-    }
-
-    @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
 
     @Bean
     public JavaMailSender javaMailSender() {
-
         JavaMailSenderImpl mailSender = new JavaMailSenderImpl();
         mailSender.setHost("smtp.gmail.com");
         mailSender.setPort(587);
@@ -86,5 +61,4 @@ public class ApplicationConfig {
 
         return mailSender;
     }
-
 }

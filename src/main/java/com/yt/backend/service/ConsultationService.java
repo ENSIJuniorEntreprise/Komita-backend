@@ -1,6 +1,7 @@
 package com.yt.backend.service;
 
 import com.yt.backend.repository.ServiceRepository;
+import com.yt.backend.repository.UserRepository;
 import com.yt.backend.exception.ResourceNotFoundException;
 import com.yt.backend.exception.BusinessException;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,7 +23,11 @@ public class ConsultationService {
     private UserService userService;
 
     @Autowired
+    private UserRepository userRepository;
+
+    @Autowired
     private ServiceService serviceService;
+    
     @Autowired
     private ServiceRepository serviceRepository;
 
@@ -40,6 +45,34 @@ public class ConsultationService {
             throw new BusinessException("User information is required");
         }
 
+        // First, ensure the user is saved to the database
+        User savedUser = userService.saveUser(user);
+        
+        Consultation consultation = new Consultation();
+        consultation.setServiceConsulting(service);
+        consultation.setUserConsulting(savedUser); // Use the saved user
+        consultation.setConsultingDate(new Date());
+        consultation.setChecked(true);
+        
+        try {
+            Consultation savedConsultation = consultationRepository.save(consultation);
+            onConsultationChecked(savedConsultation);
+            return savedConsultation;
+        } catch (Exception e) {
+            throw new BusinessException("Failed to create consultation: " + e.getMessage());
+        }
+    }
+
+    // Alternative method that takes userId instead of User object
+    public Consultation createConsultation(Long serviceId, Long userId) {
+        com.yt.backend.model.Service service = serviceRepository.findServiceById(serviceId);
+        if (service == null) {
+            throw new ResourceNotFoundException("Service not found with id: " + serviceId);
+        }
+        
+        User user = userRepository.findById(userId)
+            .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
+        
         Consultation consultation = new Consultation();
         consultation.setServiceConsulting(service);
         consultation.setUserConsulting(user);
@@ -47,9 +80,9 @@ public class ConsultationService {
         consultation.setChecked(true);
         
         try {
-            consultationRepository.save(consultation);
-            onConsultationChecked(consultation);
-            return consultation;
+            Consultation savedConsultation = consultationRepository.save(consultation);
+            onConsultationChecked(savedConsultation);
+            return savedConsultation;
         } catch (Exception e) {
             throw new BusinessException("Failed to create consultation: " + e.getMessage());
         }

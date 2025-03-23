@@ -13,10 +13,14 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.authentication.logout.LogoutHandler;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import com.yt.backend.service.OAuth2Service;
 
 import static org.springframework.security.config.http.SessionCreationPolicy.STATELESS;
+import java.util.Arrays;
 
 @Configuration
 @EnableWebSecurity
@@ -41,16 +45,31 @@ public class SecurityConfiguration {
         private final JwtAuthenticationFilter jwtAuthFilter;
         private final AuthenticationProvider authenticationProvider;
         private final LogoutHandler logoutHandler;
+
+        @Bean
+        public CorsConfigurationSource corsConfigurationSource() {
+            CorsConfiguration configuration = new CorsConfiguration();
+            configuration.addAllowedOriginPattern("*");
+            configuration.addAllowedMethod("*");
+            configuration.addAllowedHeader("*");
+            configuration.setAllowCredentials(true);
+            configuration.setMaxAge(3600L);
+            
+            UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+            source.registerCorsConfiguration("/**", configuration);
+            return source;
+        }
+
         @Bean
         public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
                 http
+                                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                                 .csrf(AbstractHttpConfigurer::disable)
                                 .authorizeRequests(req -> req.requestMatchers(WHITE_LIST_URL)
-                                                .permitAll() // Allow all URLs in the WHITE_LIST_URL
-                                                .requestMatchers("/images/**") // For serving images, if needed
                                                 .permitAll()
-                                                .requestMatchers("/register/verifyEmail") // Utilisez antMatchers avec
-                                                                                          // un tableau de chaînes
+                                                .requestMatchers("/images/**")
+                                                .permitAll()
+                                                .requestMatchers("/register/verifyEmail")
                                                 .permitAll())
                                 .sessionManagement(session -> session.sessionCreationPolicy(STATELESS))
                                 .authenticationProvider(authenticationProvider)

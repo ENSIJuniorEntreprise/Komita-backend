@@ -7,6 +7,8 @@ spring:
     password: selim
     driver-class-name: org.postgresql.Driver
   flyway:
+    clean-on-validation-error: true
+    clean-disabled: false
     locations: classpath:db/migration 
     encoding: UTF-8
     enabled: true

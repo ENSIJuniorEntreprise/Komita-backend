@@ -21,4 +21,5 @@ public interface UserService {
     public User getLoggedInUserDetails(String email);
     public User updateUserProfileImage(Long userId, MultipartFile file) throws IOException;
     public byte[] getUserProfileImageBytes(Long userId);
+    public User saveUser(User user);
 }

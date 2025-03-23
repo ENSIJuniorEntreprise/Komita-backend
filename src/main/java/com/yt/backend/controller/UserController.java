@@ -146,8 +146,8 @@ public class UserController {
     @PutMapping("/user/updateUser/{email}")
     public ResponseEntity<UserDto> updateUser(@PathVariable("email") String email, Authentication authentication,
             @RequestBody User newUser) {
-        boolean isAdmin = serviceService.isAdmin(authentication);
-        if (isAdmin) {
+        boolean isAdminOrProfessional = serviceService.isAdminOrProfessional(authentication);
+        if (isAdminOrProfessional) {
             User user = userService.updateUser(email, newUser);
             return new ResponseEntity<>(mapToResponseDto(user), HttpStatus.OK);
         } else
@@ -251,7 +251,7 @@ public class UserController {
             @RequestParam("file") MultipartFile file,
             Authentication authentication) {
         try {
-            if (!serviceService.isAdmin(authentication)) {
+            if (!serviceService.isAdminOrProfessional(authentication)) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
             }
 
@@ -297,4 +297,22 @@ public class UserController {
 
         return new ResponseEntity<>(response, HttpStatus.OK);
     }
+
+    @GetMapping("/user/profile")
+@Operation(summary = "Get current user profile", description = "Retrieves the profile of the currently authenticated user")
+@ApiResponse(responseCode = "200", description = "Profile retrieved successfully")
+@ApiResponse(responseCode = "401", description = "Unauthorized")
+public ResponseEntity<UserDto> getCurrentUserProfile(Authentication authentication) {
+    if (authentication != null) {
+        String email = authentication.getName();
+        User user = userRepository.findByEmail(email);
+        if (user != null) {
+            return ResponseEntity.ok(mapToResponseDto(user));
+        } else {
+            return ResponseEntity.notFound().build();
+        }
+    } else {
+        return new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
+    }
+}
 }

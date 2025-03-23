@@ -13,5 +13,7 @@ public interface KeywordRepository extends JpaRepository<Keyword, Long> {
 
     List<Keyword> findByKeywordNameIgnoreCase(String keywordName);
 
+    List<Keyword> findByKeywordNameStartingWithIgnoreCase(String prefix);   
+
 
 }

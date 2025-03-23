@@ -8,6 +8,7 @@ import com.yt.backend.repository.UserRepository;
 import com.yt.backend.repository.TokenRepository;
 import com.yt.backend.repository.VerificationTokenRepository;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,17 +23,22 @@ public class UserServiceImpl implements UserService {
     private final UserRepository userRepository;
     private final TokenRepository tokenRepository;
     private final VerificationTokenRepository verificationTokenRepository;
+    private final PasswordEncoder passwordEncoder;
 
     public UserServiceImpl(UserRepository userRepository, 
                          TokenRepository tokenRepository,
-                         VerificationTokenRepository verificationTokenRepository) {
+                         VerificationTokenRepository verificationTokenRepository,
+                         PasswordEncoder passwordEncoder) {
         this.userRepository = userRepository;
         this.tokenRepository = tokenRepository;
         this.verificationTokenRepository = verificationTokenRepository;
+        this.passwordEncoder = passwordEncoder;
     }
 
     @Override
     public User addUser(User user) {
+        // Encode the password before saving
+        user.setPassword(passwordEncoder.encode(user.getPassword()));
         return userRepository.save(user);
     }
 
@@ -43,7 +49,15 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public List<User> getUsers() {
-        return userRepository.findAll();
+        try {
+            List<User> users = userRepository.findAll();
+            return users != null ? users : List.of();
+        } catch (Exception e) {
+            throw new ResponseStatusException(
+                HttpStatus.INTERNAL_SERVER_ERROR, 
+                "Error retrieving users: " + e.getMessage()
+            );
+        }
     }
 
     @Override
@@ -76,10 +90,12 @@ public class UserServiceImpl implements UserService {
             existingUser.setFirstname(newUser.getFirstname());
             existingUser.setLastname(newUser.getLastname());
             existingUser.setEmail(newUser.getEmail());
-            existingUser.setPassword(newUser.getPassword());
+            // Hash the new password if it's being updated
+            if (newUser.getPassword() != null && !newUser.getPassword().isEmpty()) {
+                existingUser.setPassword(passwordEncoder.encode(newUser.getPassword()));
+            }
             existingUser.setUserAddress(newUser.getUserAddress());
             existingUser.setStatus(true);
-            // Add other properties that you want to update
             return userRepository.save(existingUser);
         } else {
             return null; // User not found, return null to indicate the update failure
@@ -126,16 +142,23 @@ public class UserServiceImpl implements UserService {
             throw new IllegalArgumentException("Only image files are allowed");
         }
 
-        user.setProfileImage(file.getBytes());
-        return userRepository.save(user);
+        try {
+            byte[] imageBytes = file.getBytes();
+            user.setProfileImage(imageBytes);
+            User savedUser = userRepository.save(user);
+            userRepository.flush();
+            return savedUser;
+        } catch (IOException e) {
+            throw new IllegalArgumentException("Failed to process image file: " + e.getMessage());
+        }
     }
 
     @Override
     @Transactional(readOnly = true)
     public byte[] getUserProfileImageBytes(Long userId) {
-        return userRepository.findById(userId)
-                .map(User::getProfileImage)
+        User user = userRepository.findById(userId)
                 .orElseThrow(() -> new EmptyResultDataAccessException("User not found with id: " + userId, 1));
+        return user.getProfileImage();
     }
 
     @Override
@@ -160,5 +183,32 @@ public class UserServiceImpl implements UserService {
     //     return user != null ? user.getProfileImage() : null;
     // }
     
-
+    @Override
+    @Transactional
+    public User saveUser(User user) {
+        // Check if the user already exists in the database
+        if (user.getId() != null) {
+            Optional<User> existingUser = userRepository.findById(user.getId());
+            if (existingUser.isPresent()) {
+                return existingUser.get(); // User already exists, return it
+            }
+        }
+        
+        // If user has an email, check if a user with that email already exists
+        if (user.getEmail() != null && !user.getEmail().isEmpty()) {
+            User existingUser = userRepository.findByEmail(user.getEmail());
+            if (existingUser != null) {
+                return existingUser; // User with this email already exists, return it
+            }
+        }
+        
+        // If the user is new and has a password that needs encoding
+        if (user.getPassword() != null && !user.getPassword().isEmpty() 
+                && !user.getPassword().startsWith("$2a$")) { // Check if password is not already encoded
+            user.setPassword(passwordEncoder.encode(user.getPassword()));
+        }
+        
+        // Save the user to the database
+        return userRepository.save(user);
+    }
 }

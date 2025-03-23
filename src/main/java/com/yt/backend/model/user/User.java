@@ -15,6 +15,8 @@ import org.springframework.security.core.userdetails.UserDetails;
 import java.util.Collection;
 import java.util.List;
 import org.apache.commons.lang3.RandomStringUtils;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Data
 @Builder
@@ -25,7 +27,7 @@ import org.apache.commons.lang3.RandomStringUtils;
 public class User implements UserDetails {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private long id;
+    private Long id;
 
     @Column(unique = true) 
     private String customIdentifier;
@@ -49,8 +51,7 @@ public class User implements UserDetails {
     @OneToOne(cascade = CascadeType.ALL)
     private Adress userAddress;
 
-    @Lob
-    @Column(name = "profile_image")
+    @Column(name = "profile_image", columnDefinition = "bytea")
     private byte[] profileImage;
 
     @Override
@@ -108,6 +109,14 @@ public class User implements UserDetails {
         this.status = true; 
         this.customIdentifier = generateCustomIdentifier(role);
         this.profileImage = profileImage; 
+    }
+
+    public Long getId() {
+        return id;
+    }
+    
+    public void setId(Long id) {
+        this.id = id;
     }
 
 }

@@ -2,6 +2,7 @@ package com.yt.backend.controller;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.yt.backend.dto.ServiceLimitedDTO;
 import com.yt.backend.model.*;
 import com.yt.backend.model.category.Category;
 import com.yt.backend.model.category.Subcategory;
@@ -34,7 +35,6 @@ import java.util.Optional;
 
 @RequestMapping("/api/v1")
 @RestController
-@CrossOrigin(origins = "*")
 public class ServiceController {
 
     private final ServiceRepository serviceRepository;
@@ -60,14 +60,78 @@ public class ServiceController {
         this.imageService = imageService;
     }
 
-    @Operation(summary = "Get all services", description = "Retrieve a list of all services")
+    @Operation(summary = "Get all services", description = "Retrieve a list of all services with limited information for unauthenticated users")
     @GetMapping("/services")
-    public ResponseEntity<List<Service>> getAllServices() {
+    public ResponseEntity<List<?>> getAllServices(Authentication authentication) {
         List<Service> services = serviceRepository.findAll();
         if (services.isEmpty()) {
             throw new ResourceNotFoundException("No services found");
         }
-        return ResponseEntity.ok(services);
+        
+        // Check if user is authenticated
+        boolean isAuthenticated = (authentication != null && authentication.isAuthenticated());
+        
+        if (isAuthenticated) {
+            // Return full service details for authenticated users
+            return ResponseEntity.ok(services);
+        } else {
+            // Return limited service details for unauthenticated users
+            List<ServiceLimitedDTO> limitedServices = services.stream()
+                .map(this::convertToLimitedDTO)
+                .collect(java.util.stream.Collectors.toList());
+            return ResponseEntity.ok(limitedServices);
+        }
+    }
+    
+    // Helper method to convert Service to a DTO with limited information
+    private ServiceLimitedDTO convertToLimitedDTO(Service service) {
+        ServiceLimitedDTO dto = new ServiceLimitedDTO();
+        dto.setId(service.getId());
+        dto.setName(service.getName());
+        dto.setDescription(service.getDescription());
+        
+        // Include category information
+        if (service.getCategory() != null) {
+            dto.setCategoryId(service.getCategory().getId());
+            dto.setCategoryName(service.getCategory().getName());
+        }
+        
+        // Include subcategory information if available
+        if (service.getSubcategory() != null) {
+            dto.setSubcategoryId(service.getSubcategory().getId());
+            dto.setSubcategoryName(service.getSubcategory().getName());
+        }
+        
+        // Include basic professional information without sensitive details
+        if (service.getProfessional() != null) {
+            User professional = service.getProfessional();
+            dto.setProfessionalId(professional.getId());
+            dto.setProfessionalName(professional.getFirstname() + " " + professional.getLastname());
+            dto.setProfessionalProfileImage(professional.getProfileImage());
+        }
+        
+        // Include keywords
+        if (service.getKeywordList() != null && !service.getKeywordList().isEmpty()) {
+            List<String> keywordNames = service.getKeywordList().stream()
+                .map(Keyword::getKeywordName)
+                .collect(java.util.stream.Collectors.toList());
+            dto.setKeywords(keywordNames);
+        }
+        
+        // Include primary image ID (first image in the list)
+        if (service.getImages() != null && !service.getImages().isEmpty()) {
+            dto.setPrimaryImageId(service.getImages().get(0).getId());
+        }
+        
+        // Set the creation date
+        dto.setCreatedAt(service.getCreatedAt());
+        
+        // Set the city from the address
+        if (service.getAdress() != null) {
+            dto.setCity(service.getAdress().getCity());
+        }
+        
+        return dto;
     }
 
     @Operation(summary = "Get service by ID", description = "Retrieve a service by its unique identifier")
@@ -347,23 +411,45 @@ public class ServiceController {
         }
     }
 
-    @Operation(summary = "Get services by keyword", description = "Retrieve a list of services matching the provided keywords")
+    @Operation(summary = "Get services by keyword", description = "Retrieve a list of services matching the provided keywords or partial keywords")
     @GetMapping("/services/byKeyword")
     public ResponseEntity<?> getServicesByKeyword(@RequestParam List<String> keywords) {
         List<Keyword> keywordList = new ArrayList<>();
         for (String keyword : keywords) {
-            // Assuming you have a method in KeywordRepository to find by keywordName
-            keywordList.addAll(keywordRepository.findByKeywordNameIgnoreCase(keyword));
+            // Using a method that finds keywords that start with the provided string (partial match)
+            keywordList.addAll(keywordRepository.findByKeywordNameStartingWithIgnoreCase(keyword));
         }
+        
         if (keywordList.isEmpty()) {
             return new ResponseEntity<>("No services found for the provided keywords", HttpStatus.NOT_FOUND);
         }
+        
         List<Service> services = serviceRepository.findByKeywordListIn(keywordList);
         if (services.isEmpty()) {
             return new ResponseEntity<>(HttpStatus.NO_CONTENT);
         }
+        
         return new ResponseEntity<>(services, HttpStatus.OK);
     }
+
+
+    // @Operation(summary = "Get services by keyword", description = "Retrieve a list of services matching the provided keywords")
+    // @GetMapping("/services/byKeyword")
+    // public ResponseEntity<?> getServicesByKeyword(@RequestParam List<String> keywords) {
+    //     List<Keyword> keywordList = new ArrayList<>();
+    //     for (String keyword : keywords) {
+    //         // Assuming you have a method in KeywordRepository to find by keywordName
+    //         keywordList.addAll(keywordRepository.findByKeywordNameIgnoreCase(keyword));
+    //     }
+    //     if (keywordList.isEmpty()) {
+    //         return new ResponseEntity<>("No services found for the provided keywords", HttpStatus.NOT_FOUND);
+    //     }
+    //     List<Service> services = serviceRepository.findByKeywordListIn(keywordList);
+    //     if (services.isEmpty()) {
+    //         return new ResponseEntity<>(HttpStatus.NO_CONTENT);
+    //     }
+    //     return new ResponseEntity<>(services, HttpStatus.OK);
+    // }
 
 }
 

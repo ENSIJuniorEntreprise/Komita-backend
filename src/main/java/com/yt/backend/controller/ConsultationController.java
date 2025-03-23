@@ -18,21 +18,12 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1/consultations")
 @Validated
-@CrossOrigin(origins = "*")
 public class ConsultationController {
     private final ConsultationService consultationService;
 
     public ConsultationController(ConsultationService consultationService) {
         this.consultationService = consultationService;
     }
-
-    /**
-     * Consult a service.
-     *
-     * @param serviceId The ID of the service to consult.
-     * @param user      The user requesting the consultation.
-     * @return ResponseEntity containing the created consultation.
-     */
 
     @Operation(summary = "Consult a service")
     @ApiResponses(value = {
@@ -51,11 +42,6 @@ public class ConsultationController {
         return ResponseEntity.ok(consultation);
     }
 
-    /**
-     * Get all consultations.
-     *
-     * @return List of all consultations.
-     */
     @Operation(summary = "Get all consultations")
     @ApiResponses(value = {
         @ApiResponse(responseCode = "200", description = "Consultations retrieved successfully"),
@@ -64,18 +50,8 @@ public class ConsultationController {
     @GetMapping
     public ResponseEntity<List<Consultation>> getAllConsultations() {
         List<Consultation> consultations = consultationService.getAllConsultations();
-        if (consultations.isEmpty()) {
-            throw new ResourceNotFoundException("No consultations found");
-        }
         return ResponseEntity.ok(consultations);
     }
-
-    /**
-     * Get a consultation by ID.
-     *
-     * @param id The ID of the consultation to retrieve.
-     * @return ResponseEntity containing the consultation, or 404 if not found.
-     */
 
     @Operation(summary = "Get consultation by ID")
     @ApiResponses(value = {
@@ -88,12 +64,6 @@ public class ConsultationController {
         return ResponseEntity.ok(consultation);
     }
 
-    /**
-     * Delete a consultation by ID.
-     *
-     * @param id The ID of the consultation to delete.
-     * @return ResponseEntity indicating success or failure of deletion.
-     */
     @Operation(summary = "Delete consultation")
     @ApiResponses(value = {
         @ApiResponse(responseCode = "204", description = "Consultation deleted successfully"),
@@ -113,9 +83,6 @@ public class ConsultationController {
     @GetMapping("/user/{userId}")
     public ResponseEntity<List<Consultation>> getConsultationsByUser(@PathVariable Long userId) {
         List<Consultation> consultations = consultationService.getConsultationsByUser(userId);
-        if (consultations.isEmpty()) {
-            throw new ResourceNotFoundException("No consultations found for user with id: " + userId);
-        }
         return ResponseEntity.ok(consultations);
     }
 
@@ -127,9 +94,6 @@ public class ConsultationController {
     @GetMapping("/service/{serviceId}")
     public ResponseEntity<List<Consultation>> getConsultationsByService(@PathVariable Long serviceId) {
         List<Consultation> consultations = consultationService.getConsultationsByService(serviceId);
-        if (consultations.isEmpty()) {
-            throw new ResourceNotFoundException("No consultations found for service with id: " + serviceId);
-        }
         return ResponseEntity.ok(consultations);
     }
 }
