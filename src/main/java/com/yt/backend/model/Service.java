@@ -26,6 +26,8 @@ public class Service {
     @GeneratedValue
     private long id;
     private String name;
+    
+    @Column(length = 3000)  // Increasing the description length to 3000 characters
     private String description;
 
     @Temporal(TemporalType.TIMESTAMP)
@@ -46,7 +48,8 @@ public class Service {
     @OneToOne
     private User professional;
 
-    private Boolean state;
+    @Enumerated(EnumType.STRING)
+    private ServiceState state;
 
     @OneToOne
     @Cascade(org.hibernate.annotations.CascadeType.ALL)
@@ -70,7 +73,7 @@ public class Service {
     @Setter
     private Boolean checked;
 
-    public Service(String name, String description, User professional, Category category, Subcategory subcategory, Boolean state, Adress adress, Links serviceLinks) {
+    public Service(String name, String description, User professional, Category category, Subcategory subcategory, ServiceState state, Adress adress, Links serviceLinks) {
         this.name = name;
         this.description = description;
         this.professional = professional;

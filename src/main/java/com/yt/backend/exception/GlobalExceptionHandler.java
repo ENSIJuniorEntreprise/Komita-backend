@@ -15,6 +15,10 @@ import jakarta.persistence.EntityNotFoundException;
 import java.util.HashMap;
 import java.util.Map;
 
+// Add these imports if they're not already present
+import java.io.PrintWriter;
+import java.io.StringWriter;
+
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
@@ -68,6 +72,19 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(error, HttpStatus.UNSUPPORTED_MEDIA_TYPE);
     }
 
+    // Ajouter ce gestionnaire d'exception à votre GlobalExceptionHandler existant
+    
+    @ExceptionHandler(ValidationException.class)
+    public ResponseEntity<ErrorResponse> handleValidationException(ValidationException ex) {
+        ErrorResponse error = new ErrorResponse(
+            HttpStatus.BAD_REQUEST.value(),
+            "Validation Error",
+            ex.getMessage(),
+            ex.getErrors()
+        );
+        return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> handleValidationExceptions(MethodArgumentNotValidException ex) {
         Map<String, String> errors = new HashMap<>();
@@ -78,7 +95,8 @@ public class GlobalExceptionHandler {
         ErrorResponse error = new ErrorResponse(
             HttpStatus.BAD_REQUEST.value(),
             "Validation Failed",
-            errors.toString()
+            "Des erreurs de validation ont été détectées",
+            errors
         );
         return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
     }
@@ -113,13 +131,59 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
     }
 
+    @ExceptionHandler(ConflictException.class)
+    public ResponseEntity<ErrorResponse> handleConflictException(ConflictException ex) {
+        ErrorResponse error = new ErrorResponse(
+            HttpStatus.CONFLICT.value(),
+            "Conflit de données",
+            ex.getMessage()
+        );
+        return new ResponseEntity<>(error, HttpStatus.CONFLICT);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGenericException(Exception ex) {
+        // Create detailed error information
+        Map<String, String> details = new HashMap<>();
+        
+        // Add exception type
+        details.put("exceptionType", ex.getClass().getName());
+        
+        // Add exception message
+        details.put("message", ex.getMessage() != null ? ex.getMessage() : "No message available");
+        
+        // Add cause if available
+        if (ex.getCause() != null) {
+            details.put("cause", ex.getCause().toString());
+            if (ex.getCause().getMessage() != null) {
+                details.put("causeMessage", ex.getCause().getMessage());
+            }
+        }
+        
+        // Add stack trace (first few lines)
+        StringWriter sw = new StringWriter();
+        PrintWriter pw = new PrintWriter(sw);
+        ex.printStackTrace(pw);
+        String stackTrace = sw.toString();
+        String[] lines = stackTrace.split("\n");
+        StringBuilder traceBuilder = new StringBuilder();
+        for (int i = 0; i < Math.min(10, lines.length); i++) {
+            traceBuilder.append(lines[i]).append("\n");
+        }
+        details.put("stackTrace", traceBuilder.toString());
+        
+        // Create error response
         ErrorResponse error = new ErrorResponse(
             HttpStatus.INTERNAL_SERVER_ERROR.value(),
             "Internal Server Error",
-            "An unexpected error occurred"
+            "Une erreur inattendue s'est produite: " + ex.getMessage(),
+            details
         );
+        
+        // Log the full exception for server-side debugging
+        System.err.println("Exception détaillée: ");
+        ex.printStackTrace();
+        
         return new ResponseEntity<>(error, HttpStatus.INTERNAL_SERVER_ERROR);
     }
-} 
+}

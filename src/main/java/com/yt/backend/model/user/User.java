@@ -54,6 +54,9 @@ public class User implements UserDetails {
     @Column(name = "profile_image", columnDefinition = "bytea")
     private byte[] profileImage;
 
+    @Column(name = "phone_number")
+    private String phoneNumber;
+    
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
         return List.of(new SimpleGrantedAuthority(role.name()));
@@ -99,7 +102,7 @@ public class User implements UserDetails {
 
     // Constructor with profileImage parameter
     public User(String firstname, String lastname, String email, Role role, String password, Adress userAddress,
-            byte[] profileImage) {
+            byte[] profileImage, String phoneNumber) {
         this.firstname = firstname;
         this.lastname = lastname;
         this.email = email;
@@ -109,6 +112,7 @@ public class User implements UserDetails {
         this.status = true; 
         this.customIdentifier = generateCustomIdentifier(role);
         this.profileImage = profileImage; 
+        this.phoneNumber = phoneNumber;
     }
 
     public Long getId() {

@@ -18,6 +18,7 @@ import com.yt.backend.service.ServiceService;
 import com.yt.backend.service.ImageService;
 import com.yt.backend.exception.ResourceNotFoundException;
 import com.yt.backend.exception.BusinessException;
+import com.yt.backend.exception.ValidationException;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import org.springframework.security.core.Authentication;
@@ -26,12 +27,15 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import com.yt.backend.model.Service;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
+import java.util.HashMap;
+import java.util.Map;
+
 
 @RequestMapping("/api/v1")
 @RestController
@@ -146,18 +150,68 @@ public class ServiceController {
     @ApiResponse(responseCode = "201", description = "Service created successfully")
     @ApiResponse(responseCode = "400", description = "Invalid request body or insufficient privileges")
     @PostMapping(value = "/services/createService", consumes = { MediaType.MULTIPART_FORM_DATA_VALUE })
-    public ResponseEntity<Service> createService(
+    public ResponseEntity<?> createService(
             @RequestPart("service") String serviceJson,
             @RequestPart(value = "images", required = false) List<MultipartFile> images) {
         try {
             ObjectMapper mapper = new ObjectMapper();
             Service service = mapper.readValue(serviceJson, Service.class);
+            
+            // Validate service data
+            Map<String, String> validationErrors = validateService(service);
+            if (!validationErrors.isEmpty()) {
+                throw new ValidationException("Erreurs de validation lors de la création du service", validationErrors);
+            }
+            
             return createSingleService(service, images);
         } catch (JsonProcessingException e) {
             throw new BusinessException("Invalid JSON format: " + e.getMessage());
         }
     }
 
+    private Map<String, String> validateService(Service service) {
+        Map<String, String> errors = new HashMap<>();
+        
+        // Validate name
+        if (service.getName() == null || service.getName().trim().isEmpty()) {
+            errors.put("name", "Le nom du service est obligatoire");
+        } else if (service.getName().length() < 3 || service.getName().length() > 100) {
+            errors.put("name", "Le nom du service doit contenir entre 3 et 100 caractères");
+        }
+        
+        // Validate description
+        if (service.getDescription() == null || service.getDescription().trim().isEmpty()) {
+            errors.put("description", "La description du service est obligatoire");
+        } else if (service.getDescription().length() < 10 || service.getDescription().length() > 3000) {
+            errors.put("description", "La description doit contenir entre 10 et 3000 caractères");
+        }
+        
+        // Validate professional
+        if (service.getProfessional() == null || service.getProfessional().getId() == null) {
+            errors.put("professional", "L'identifiant du professionnel est obligatoire");
+        }
+        
+        // Validate category
+        if (service.getCategory() == null || service.getCategory().getId() == null) {
+            errors.put("category", "La catégorie est obligatoire");
+        }
+        
+        // Validate address if present
+        if (service.getAdress() != null) {
+            if (service.getAdress().getCity() == null || service.getAdress().getCity().trim().isEmpty()) {
+                errors.put("address.city", "La ville est obligatoire");
+            }
+            if (service.getAdress().getCountry() == null || service.getAdress().getCountry().trim().isEmpty()) {
+                errors.put("address.country", "Le pays est obligatoire");
+            }
+        } else {
+            errors.put("address", "L'adresse est obligatoire");
+        }
+        
+        return errors;
+    }
+
+    // Update the createSingleService method to use ServiceState.ACTIVE instead of Boolean.TRUE
     private ResponseEntity<Service> createSingleService(Service service, List<MultipartFile> imageFiles) {
         User professional = userRepository.findById(service.getProfessional().getId())
                 .orElseThrow(() -> new ResourceNotFoundException("Professional not found with id: " + service.getProfessional().getId()));
@@ -182,7 +236,7 @@ public class ServiceController {
             professional,
             category,
             subcategory,
-            Boolean.TRUE,
+            ServiceState.ACTIVE, // Changed from Boolean.TRUE to ServiceState.ACTIVE
             service.getAdress(),
             service.getLinks()
         );
@@ -221,18 +275,25 @@ public class ServiceController {
         return new ResponseEntity<>(_service, HttpStatus.CREATED);
     }
 
+    // Update validateImageFile to use ValidationException
     private void validateImageFile(MultipartFile file) {
+        Map<String, String> errors = new HashMap<>();
+        
         if (file.isEmpty()) {
-            throw new BusinessException("File is empty");
+            errors.put("file", "Le fichier est vide");
         }
-
+    
         String contentType = file.getContentType();
         if (contentType == null || !contentType.startsWith("image/")) {
-            throw new BusinessException("Invalid file type. Only images are allowed.");
+            errors.put("fileType", "Type de fichier invalide. Seules les images sont autorisées.");
         }
-
+    
         if (file.getSize() > 5 * 1024 * 1024) {
-            throw new BusinessException("File size too large. Maximum size allowed is 5MB");
+            errors.put("fileSize", "Taille du fichier trop grande. La taille maximale autorisée est de 5MB");
+        }
+        
+        if (!errors.isEmpty()) {
+            throw new ValidationException("Erreurs de validation du fichier image", errors);
         }
     }
 
@@ -240,15 +301,21 @@ public class ServiceController {
     @ApiResponse(responseCode = "200", description = "Service updated successfully")
     @ApiResponse(responseCode = "403", description = "Insufficient privileges")
     @PutMapping("/services/updateService/{id}")
-    public ResponseEntity<Service> updateService(@PathVariable("id") long id, @RequestBody Service service,
+    public ResponseEntity<?> updateService(@PathVariable("id") long id, @RequestBody Service service,
             Authentication authentication) {
         if (!serviceService.isAdminOrProfessional(authentication)) {
             throw new BusinessException("Insufficient privileges");
         }
-
+    
         Service _service = serviceRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Service not found with id: " + id));
-
+    
+        // Validate service data
+        Map<String, String> validationErrors = validateService(service);
+        if (!validationErrors.isEmpty()) {
+            throw new ValidationException("Erreurs de validation lors de la mise à jour du service", validationErrors);
+        }
+    
         // Update all fields
         _service.setName(service.getName());
         _service.setDescription(service.getDescription());
@@ -259,7 +326,7 @@ public class ServiceController {
         _service.setAdress(service.getAdress());
         _service.setLinks(service.getLinks());
         _service.setChecked(service.getChecked());
-
+    
         // Handle keywords
         if (service.getKeywordList() != null) {
             _service.getKeywordList().clear();
@@ -268,7 +335,7 @@ public class ServiceController {
                 _service.getKeywordList().add(keyword);
             }
         }
-
+    
         // Handle images
         if (service.getImages() != null) {
             _service.getImages().clear();
@@ -277,7 +344,7 @@ public class ServiceController {
                 _service.getImages().add(image);
             }
         }
-
+    
         Service updatedService = serviceRepository.save(_service);
         return ResponseEntity.ok(updatedService);
     }
@@ -311,39 +378,51 @@ public class ServiceController {
         return ResponseEntity.noContent().build();
     }
 
-    @Operation(summary = "Get recent professionals", description = "Get a list of recent professionals with an optional limit on the number of rows returned Max-Rows.")
-    @GetMapping("/services/recentProfessionals")
-    public ResponseEntity<List<Service>> getRecentProfessionals(
-            @RequestHeader(value = "Max-Rows", required = false) Integer maxRows) {
-        List<Service> recentServices = serviceRepository.findAllByOrderByCreatedAtDesc();
+@Operation(summary = "Get recent professionals", description = "Get a list of recent professionals with an optional limit on the number of rows returned (Max-Rows).")
+@GetMapping("/services/recentProfessionals")
+public ResponseEntity<List<ServiceLimitedDTO>> getRecentProfessionals(
+        @RequestHeader(value = "Max-Rows", required = false) Integer maxRows) {
 
-        // Check if Max-Rows header is present and valid
-        if (maxRows != null && maxRows > 0 && maxRows < recentServices.size()) {
-            recentServices = recentServices.subList(0, maxRows);
-        }
+    List<Service> recentServices = serviceRepository.findAllByOrderByCreatedAtDesc();
 
-        if (recentServices.isEmpty()) {
-            return new ResponseEntity<>(HttpStatus.NO_CONTENT);
-        }
-        return new ResponseEntity<>(recentServices, HttpStatus.OK);
+    // Limiter les services si Max-Rows est précisé
+    if (maxRows != null && maxRows > 0 && maxRows < recentServices.size()) {
+        recentServices = recentServices.subList(0, maxRows);
     }
 
-    @Operation(summary = "Get popular professionals", description = "Retrieve a list of popular professionals with an optional limit on the number of rows returned Max-Rows.")
-    @GetMapping("/services/popularProfessionals")
-    public ResponseEntity<List<Service>> getPopularProfessionals(
-            @RequestHeader(value = "Max-Rows", required = false) Integer maxRows) {
-        List<Service> popularProfessionals = serviceRepository.findAllByOrderByNbrConsultationsDesc();
-
-        // Check if Max-Rows header is present and valid
-        if (maxRows != null && maxRows > 0 && maxRows < popularProfessionals.size()) {
-            popularProfessionals = popularProfessionals.subList(0, maxRows);
-        }
-
-        if (popularProfessionals.isEmpty()) {
-            return new ResponseEntity<>(HttpStatus.NO_CONTENT);
-        }
-        return new ResponseEntity<>(popularProfessionals, HttpStatus.OK);
+    if (recentServices.isEmpty()) {
+        return new ResponseEntity<>(HttpStatus.NO_CONTENT);
     }
+
+    List<ServiceLimitedDTO> limitedServices = recentServices.stream()
+            .map(this::convertToLimitedDTO)
+            .collect(Collectors.toList());
+
+    return new ResponseEntity<>(limitedServices, HttpStatus.OK);
+}
+
+@Operation(summary = "Get popular professionals", description = "Retrieve a list of popular professionals with an optional limit on the number of rows returned (Max-Rows).")
+@GetMapping("/services/popularProfessionals")
+public ResponseEntity<List<ServiceLimitedDTO>> getPopularProfessionals(
+        @RequestHeader(value = "Max-Rows", required = false) Integer maxRows) {
+
+    List<Service> popularServices = serviceRepository.findAllByOrderByNbrConsultationsDesc();
+
+    // Limiter les services si Max-Rows est précisé
+    if (maxRows != null && maxRows > 0 && maxRows < popularServices.size()) {
+        popularServices = popularServices.subList(0, maxRows);
+    }
+
+    if (popularServices.isEmpty()) {
+        return new ResponseEntity<>(HttpStatus.NO_CONTENT);
+    }
+
+    List<ServiceLimitedDTO> limitedServices = popularServices.stream()
+            .map(this::convertToLimitedDTO)
+            .collect(Collectors.toList());
+
+    return new ResponseEntity<>(limitedServices, HttpStatus.OK);
+}
 
     public SubcategoryRepository getSubcategoryRepository() {
         return subcategoryRepository;
@@ -450,6 +529,26 @@ public class ServiceController {
     //     }
     //     return new ResponseEntity<>(services, HttpStatus.OK);
     // }
+    @Operation(summary = "Update service state", description = "Allows authorized users to update the state of a service")
+@ApiResponse(responseCode = "200", description = "Service state updated successfully")
+@ApiResponse(responseCode = "401", description = "Unauthorized")
+@ApiResponse(responseCode = "404", description = "Service not found")
+@PutMapping("/services/{id}/updateState")
+public ResponseEntity<Service> updateServiceState(
+        @PathVariable("id") long id,
+        @io.swagger.v3.oas.annotations.Parameter(description = "New service state (ACTIVE, INACTIVE, SUSPENDED)", required = true)
+        @RequestParam ServiceState state,
+        Authentication authentication) {
+    
+    if (!serviceService.isAdminOrProfessional(authentication)) {
+        return new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
+    }
+    
+    Service updatedService = serviceService.updateServiceState(id, state);
+    return ResponseEntity.ok(updatedService);
+}
 
 }
+
+
 

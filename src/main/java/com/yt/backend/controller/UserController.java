@@ -6,7 +6,7 @@ import com.yt.backend.model.user.Role;
 import com.yt.backend.model.user.User;
 import org.apache.tika.Tika;
 import org.springframework.dao.EmptyResultDataAccessException;
-
+import com.yt.backend.exception.ValidationException;
 import com.yt.backend.repository.UserRepository;
 import com.yt.backend.service.ServiceService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -50,15 +50,97 @@ public class UserController {
     @Operation(summary = "Add a new user", description = "Allows authorized users to add a new user")
     @ApiResponse(responseCode = "200", description = "User added successfully")
     @ApiResponse(responseCode = "401", description = "Unauthorized")
+    @ApiResponse(responseCode = "400", description = "Invalid user data")
     @PostMapping("/user/addUser")
-    public String addUser(@RequestBody User user, Authentication authentication) {
+    public ResponseEntity<?> addUser(@RequestBody User user, Authentication authentication) {
         boolean isAdmin = serviceService.isAdmin(authentication);
-        if (isAdmin) {
-            userService.addUser(user);
-            return "User Added successfully!";
-        } else {
-            return "Unauthorized!";
+        if (!isAdmin) {
+            return new ResponseEntity<>("Unauthorized!", HttpStatus.UNAUTHORIZED);
         }
+        
+        // Validate user data
+        Map<String, String> validationErrors = validateUser(user);
+        if (!validationErrors.isEmpty()) {
+            throw new ValidationException("Erreurs de validation lors de l'ajout d'un utilisateur", validationErrors);
+        }
+        
+        try {
+            userService.addUser(user);
+            return ResponseEntity.ok("User Added successfully!");
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Error adding user: " + e.getMessage());
+        }
+    }
+
+    private Map<String, String> validateUser(User user) {
+        Map<String, String> errors = new HashMap<>();
+        
+        // Validate firstname
+        if (user.getFirstname() == null || user.getFirstname().trim().isEmpty()) {
+            errors.put("firstname", "Le prénom est obligatoire");
+        } else if (user.getFirstname().length() < 2 || user.getFirstname().length() > 50) {
+            errors.put("firstname", "Le prénom doit contenir entre 2 et 50 caractères");
+        }
+        
+        // Validate lastname
+        if (user.getLastname() == null || user.getLastname().trim().isEmpty()) {
+            errors.put("lastname", "Le nom est obligatoire");
+        } else if (user.getLastname().length() < 2 || user.getLastname().length() > 50) {
+            errors.put("lastname", "Le nom doit contenir entre 2 et 50 caractères");
+        }
+        
+        // Validate email
+        if (user.getEmail() == null || user.getEmail().trim().isEmpty()) {
+            errors.put("email", "L'email est obligatoire");
+        } else if (!isValidEmail(user.getEmail())) {
+            errors.put("email", "Format d'email invalide");
+        } else if (userRepository.findByEmail(user.getEmail()) != null) {
+            errors.put("email", "Cet email est déjà utilisé");
+        }
+        
+        // // Validate username
+        // if (user.getUsername() == null || user.getUsername().trim().isEmpty()) {
+        //     errors.put("username", "Le nom d'utilisateur est obligatoire");
+        // } else if (user.getUsername().length() < 3 || user.getUsername().length() > 30) {
+        //     errors.put("username", "Le nom d'utilisateur doit contenir entre 3 et 30 caractères");
+        // }
+        
+        // Validate password
+        if (user.getPassword() == null || user.getPassword().trim().isEmpty()) {
+            errors.put("password", "Le mot de passe est obligatoire");
+        } else if (user.getPassword().length() < 8) {
+            errors.put("password", "Le mot de passe doit contenir au moins 8 caractères");
+        } else if (!isStrongPassword(user.getPassword())) {
+            errors.put("password", "Le mot de passe doit contenir au moins une lettre majuscule, une lettre minuscule, un chiffre et un caractère spécial");
+        }
+        
+        // Validate role
+        if (user.getRole() == null) {
+            errors.put("role", "Le rôle est obligatoire");
+        }
+        
+        // Remove phone number validation for professionals
+        // if (user.getRole() == Role.PROFESSIONAL) {
+        //     if (user.getPhoneNumber() == null || user.getPhoneNumber().trim().isEmpty()) {
+        //         errors.put("phoneNumber", "Le numéro de téléphone est obligatoire pour les professionnels");
+        //     } else if (!isValidPhoneNumber(user.getPhoneNumber())) {
+        //         errors.put("phoneNumber", "Format de numéro de téléphone invalide");
+        //     }
+        // }
+        
+        return errors;
+    }
+
+    private boolean isValidEmail(String email) {
+        String emailRegex = "^[a-zA-Z0-9_+&*-]+(?:\\.[a-zA-Z0-9_+&*-]+)*@(?:[a-zA-Z0-9-]+\\.)+[a-zA-Z]{2,7}$";
+        return email.matches(emailRegex);
+    }
+
+    private boolean isStrongPassword(String password) {
+        // Password should contain at least one digit, one lowercase, one uppercase, one special character and be at least 8 characters long
+        String passwordRegex = "^(?=.*[0-9])(?=.*[a-z])(?=.*[A-Z])(?=.*[@#$%^&+=!])(?=\\S+$).{8,}$";
+        return password.matches(passwordRegex);
     }
 
     @Operation(summary = "Get user by ID", description = "Retrieves a user by their ID")
@@ -75,6 +157,7 @@ public class UserController {
         }
     }
 
+    // Update the mapToResponseDto method to include phoneNumber
     private UserDto mapToResponseDto(User user) {
         if (user == null) {
             return null;
@@ -88,8 +171,12 @@ public class UserController {
         userDto.setEmail(user.getEmail());
         userDto.setRole(user.getRole() != null ? user.getRole().name() : null);
         userDto.setStatus(user.isStatus());
-        userDto.setEnabled(user.isEnabled());
-        userDto.setUsername(user.getUsername());
+        userDto.setPhoneNumber(user.getPhoneNumber());
+        
+        // Only include phone number for professionals
+        if (user.getRole() == Role.PROFESSIONAL) {
+            userDto.setPhoneNumber(user.getPhoneNumber());
+        }
 
         // Handle address if present
         if (user.getUserAddress() != null) {
@@ -148,10 +235,24 @@ public class UserController {
             @RequestBody User newUser) {
         boolean isAdminOrProfessional = serviceService.isAdminOrProfessional(authentication);
         if (isAdminOrProfessional) {
-            User user = userService.updateUser(email, newUser);
-            return new ResponseEntity<>(mapToResponseDto(user), HttpStatus.OK);
-        } else
+            // If admin, allow any phone number update
+            boolean isAdmin = serviceService.isAdmin(authentication);
+            if (isAdmin) {
+                // Optionally, you can add phone number format validation here if needed
+                // Example:
+                // if (newUser.getPhoneNumber() != null && !isValidPhoneNumber(newUser.getPhoneNumber())) {
+                //     return ResponseEntity.badRequest().body(null);
+                // }
+                User user = userService.updateUser(email, newUser);
+                return new ResponseEntity<>(mapToResponseDto(user), HttpStatus.OK);
+            } else {
+                // For professionals, you may keep your existing logic or add restrictions if needed
+                User user = userService.updateUser(email, newUser);
+                return new ResponseEntity<>(mapToResponseDto(user), HttpStatus.OK);
+            }
+        } else {
             return new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
+        }
     }
 
     @Operation(summary = "Get user by email", description = "Retrieves a user by their email address")
@@ -185,7 +286,7 @@ public class UserController {
         }
     }
 
-    @PatchMapping("/{userId}/UpdateUserRole")
+    @PostMapping("/{userId}/UpdateUserRole")
     @Operation(summary = "Update user role to PROFESSIONAL by ID", description = "Updates the role of a user based on the provided user ID to Professional.")
     @ApiResponse(responseCode = "200", description = "User role updated successfully", content = @Content(schema = @Schema(implementation = User.class)))
     @ApiResponse(responseCode = "404", description = "User not found")
@@ -315,4 +416,45 @@ public ResponseEntity<UserDto> getCurrentUserProfile(Authentication authenticati
         return new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
     }
 }
+
+    // Add a new endpoint to update phone number (only for professionals)
+    @Operation(summary = "Update phone number", description = "Allows professionals to update their phone number")
+    @ApiResponse(responseCode = "200", description = "Phone number updated successfully")
+    @ApiResponse(responseCode = "400", description = "Invalid phone number format")
+    @ApiResponse(responseCode = "401", description = "Unauthorized")
+    @ApiResponse(responseCode = "403", description = "Forbidden - User is not a professional")
+    @PutMapping("/user/{userId}/updatePhoneNumber")
+    public ResponseEntity<?> updatePhoneNumber(
+            @PathVariable("userId") Long userId,
+            @RequestParam("phoneNumber") String phoneNumber,
+            Authentication authentication) {
+        
+        // Only check if user is authorized (admin or the user themselves)
+        boolean isAdmin = serviceService.isAdmin(authentication);
+        String currentUserEmail = authentication.getName();
+        User currentUser = userRepository.findByEmail(currentUserEmail);
+        
+        if (!isAdmin && (currentUser == null || !currentUser.getId().equals(userId))) {
+            return new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
+        }
+        
+        try {
+            // No role or format validation
+            User updatedUser = userService.updatePhoneNumber(userId, phoneNumber);
+            return ResponseEntity.ok(mapToResponseDto(updatedUser));
+        } catch (DataAccessException e) {
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body("Could not update phone number: " + e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body("Error updating phone number: " + e.getMessage());
+        }
+    }
+    
+    // Remove the isValidPhoneNumber method if not used elsewhere
+    private boolean isValidPhoneNumber(String phoneNumber) {
+        // Basic validation: Allow +, digits, spaces, hyphens, and parentheses
+        String phoneRegex = "^[+]?[(]?[0-9]{1,4}[)]?[-\\s\\./0-9]*$";
+        return phoneNumber != null && phoneNumber.matches(phoneRegex);
+    }
 }

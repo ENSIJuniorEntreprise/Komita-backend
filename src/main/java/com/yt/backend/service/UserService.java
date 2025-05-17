@@ -22,4 +22,11 @@ public interface UserService {
     public User updateUserProfileImage(Long userId, MultipartFile file) throws IOException;
     public byte[] getUserProfileImageBytes(Long userId);
     public User saveUser(User user);
+    /**
+     * Updates the phone number of the user with the given userId.
+     * @param userId the id of the user to update
+     * @param phoneNumber the new phone number to set
+     * @return the updated User entity
+     */
+    public User updatePhoneNumber(Long userId, String phoneNumber);
 }

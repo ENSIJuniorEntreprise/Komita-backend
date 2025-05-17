@@ -5,6 +5,7 @@ import lombok.Setter;
 
 @Getter
 @Setter
+// Add phoneNumber field to your UserDto class
 public class UserDto {
     private Long id;
     private String customIdentifier;
@@ -17,4 +18,13 @@ public class UserDto {
     private String username;
     private AddressDto userAddress;
     private String profileImage; 
+    private String phoneNumber;
+    
+    public String getPhoneNumber() {
+        return phoneNumber;
+    }
+    
+    public void setPhoneNumber(String phoneNumber) {
+        this.phoneNumber = phoneNumber;
+    }
 }

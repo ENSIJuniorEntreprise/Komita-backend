@@ -39,6 +39,7 @@ public interface ServiceRepository extends JpaRepository<Service, Long> {
 
     List<Service> findByKeywordListIn(List<Keyword> keywords);
 
-
+    // Ajoutez cette méthode à votre interface ServiceRepository
+    List<Service> findByNameContainingIgnoreCase(String name);
 }
 

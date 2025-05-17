@@ -61,3 +61,6 @@ BEGIN
         ALTER TABLE search_history ADD CONSTRAINT fkmommtuky12qrnm3dtquai90e3 FOREIGN KEY (user_id) REFERENCES user_table(id);
     END IF;
 END $$;
+
+
+ALTER TABLE service_table ALTER COLUMN description TYPE VARCHAR(3000);

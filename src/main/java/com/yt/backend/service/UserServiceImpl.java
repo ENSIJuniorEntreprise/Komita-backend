@@ -86,19 +86,46 @@ public class UserServiceImpl implements UserService {
         Optional<User> existingUserOptional = Optional.ofNullable(userRepository.findByEmail(email));
         if (existingUserOptional.isPresent()) {
             User existingUser = existingUserOptional.get();
+    
+            // Check for phone number uniqueness for ALL users (admin or not)
+            if (newUser.getPhoneNumber() != null && !newUser.getPhoneNumber().equals(existingUser.getPhoneNumber())) {
+                User userWithSamePhone = userRepository.findByPhoneNumber(newUser.getPhoneNumber());
+                if (userWithSamePhone != null && !userWithSamePhone.getId().equals(existingUser.getId())) {
+                    throw new org.springframework.dao.DataIntegrityViolationException("Phone number already in use by another user");
+                }
+            }
+    
             // Update the properties of the existing user based on the input user
             existingUser.setFirstname(newUser.getFirstname());
             existingUser.setLastname(newUser.getLastname());
             existingUser.setEmail(newUser.getEmail());
-            // Hash the new password if it's being updated
+            existingUser.setPhoneNumber(newUser.getPhoneNumber());
             if (newUser.getPassword() != null && !newUser.getPassword().isEmpty()) {
                 existingUser.setPassword(passwordEncoder.encode(newUser.getPassword()));
             }
-            existingUser.setUserAddress(newUser.getUserAddress());
+
+            // Fix: Update address fields instead of replacing the address object
+            if (newUser.getUserAddress() != null) {
+                if (existingUser.getUserAddress() != null) {
+                    // Update fields of the existing address
+                    existingUser.getUserAddress().setStreetNumber(newUser.getUserAddress().getStreetNumber());
+                    existingUser.getUserAddress().setStreetName(newUser.getUserAddress().getStreetName());
+                    existingUser.getUserAddress().setStreetType(newUser.getUserAddress().getStreetType());
+                    existingUser.getUserAddress().setCity(newUser.getUserAddress().getCity());
+                    existingUser.getUserAddress().setProvinceName(newUser.getUserAddress().getProvinceName());
+                    existingUser.getUserAddress().setPostalCode(newUser.getUserAddress().getPostalCode());
+                    existingUser.getUserAddress().setCountry(newUser.getUserAddress().getCountry());
+                } else {
+                    // New address: ensure id is null so Hibernate creates a new row
+                    newUser.getUserAddress().setId(null);
+                    existingUser.setUserAddress(newUser.getUserAddress());
+                }
+            }
+
             existingUser.setStatus(true);
             return userRepository.save(existingUser);
         } else {
-            return null; // User not found, return null to indicate the update failure
+            return null;
         }
     }
 
@@ -209,6 +236,17 @@ public class UserServiceImpl implements UserService {
         }
         
         // Save the user to the database
+        return userRepository.save(user);
+    }
+    
+    @Override
+    @Transactional
+    public User updatePhoneNumber(Long userId, String phoneNumber) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new EmptyResultDataAccessException("User not found with id: " + userId, 1));
+        
+        // Remove role and format validation
+        user.setPhoneNumber(phoneNumber);
         return userRepository.save(user);
     }
 }

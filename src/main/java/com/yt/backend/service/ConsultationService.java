@@ -35,22 +35,64 @@ public class ConsultationService {
         this.consultationRepository = consultationRepository;
     }
 
+    // Method to get or create an anonymous user
+    private User getOrCreateAnonymousUser() {
+        // Try to find the anonymous user by a specific username or email
+        User anonymousUser = userRepository.findByEmail("anonymous@system.com")
+;
+        
+        // If anonymous user doesn't exist, create it
+        if (anonymousUser == null) {
+            anonymousUser = new User();
+            anonymousUser.setFirstname("Anonymous");
+            anonymousUser.setLastname("User");
+            anonymousUser.setEmail("anonymous@system.com");
+            anonymousUser.setPassword("anonymousUserPassword"); // Consider using a secure password
+            anonymousUser.setRole(com.yt.backend.model.user.Role.STANDARD_USER);
+            
+            // Save the anonymous user
+            anonymousUser = userService.saveUser(anonymousUser);
+        }
+        
+        return anonymousUser;
+    }
+
     public Consultation createConsultation(Long serviceId, User user) {
+        System.out.println("Creating consultation for service ID: " + serviceId);
+        if (user != null) {
+            System.out.println("User info - ID: " + user.getId() + ", Email: " + user.getEmail() + 
+                               ", First name: " + user.getFirstname() + ", Last name: " + user.getLastname());
+        } else {
+            System.out.println("User is null");
+        }
+        
         com.yt.backend.model.Service service = serviceRepository.findServiceById(serviceId);
         if (service == null) {
             throw new ResourceNotFoundException("Service not found with id: " + serviceId);
         }
         
+        // Use anonymous user if user is null or has incomplete information
+        User userToUse;
         if (user == null) {
-            throw new BusinessException("User information is required");
+            userToUse = getOrCreateAnonymousUser();
+        } else {
+            // Check if this is an authenticated user with an ID and email
+            if (user.getId() != null && user.getEmail() != null && !user.getEmail().isEmpty()) {
+                // For authenticated users, get the complete user from the database
+                userToUse = userRepository.findById(user.getId())
+                    .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + user.getId()));
+            } else if (isIncompleteUser(user)) {
+                // Only use anonymous user for incomplete guest users
+                userToUse = getOrCreateAnonymousUser();
+            } else {
+                // For complete guest users, save them as new users
+                userToUse = userService.saveUser(user);
+            }
         }
-
-        // First, ensure the user is saved to the database
-        User savedUser = userService.saveUser(user);
         
         Consultation consultation = new Consultation();
         consultation.setServiceConsulting(service);
-        consultation.setUserConsulting(savedUser); // Use the saved user
+        consultation.setUserConsulting(userToUse);
         consultation.setConsultingDate(new Date());
         consultation.setChecked(true);
         
@@ -61,6 +103,13 @@ public class ConsultationService {
         } catch (Exception e) {
             throw new BusinessException("Failed to create consultation: " + e.getMessage());
         }
+    }
+    
+    // Helper method to check if a user has incomplete information
+    private boolean isIncompleteUser(User user) {
+        return user.getEmail() == null || user.getEmail().isEmpty() ||
+               user.getFirstname() == null || user.getFirstname().isEmpty() ||
+               user.getLastname() == null || user.getLastname().isEmpty();
     }
 
     // Alternative method that takes userId instead of User object
